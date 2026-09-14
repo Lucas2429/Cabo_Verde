@@ -1,7 +1,7 @@
 {
   "memes": [
     {
-      "id": 1,
+      "id": "1",
       "content": "HTML is easy",
       "author": "web_dev",
       "thread": null,
@@ -10,7 +10,7 @@
       "image": "https://picsum.photos/seed/meme1/600/400"
     },
     {
-      "id": 2,
+      "id": "2",
       "content": "Browser can execute only JavaScript",
       "author": "js_ninja",
       "thread": 1,
@@ -19,7 +19,7 @@
       "image": "https://picsum.photos/seed/meme2/600/400"
     },
     {
-      "id": 3,
+      "id": "3",
       "content": "GET and POST are the most important methods of HTTP protocol",
       "author": "backend_pro",
       "thread": null,
@@ -28,7 +28,7 @@
       "image": "https://picsum.photos/seed/meme3/600/400"
     },
     {
-      "id": 4,
+      "id": "4",
       "content": "Podemos usar POST para crear nuevos recursos",
       "author": "rest_fan",
       "thread": 3,
@@ -37,7 +37,7 @@
       "image": "https://picsum.photos/seed/meme4/600/400"
     },
     {
-      "id": 5,
+      "id": "5",
       "content": "hola",
       "author": "anon_user",
       "thread": null,
@@ -46,7 +46,7 @@
       "image": "https://picsum.photos/seed/meme5/600/400"
     },
     {
-      "id": 6,
+      "id": "6",
       "content": "test",
       "author": "tester_qa",
       "thread": 5,
@@ -55,7 +55,7 @@
       "image": "https://picsum.photos/seed/meme6/600/400"
     },
     {
-      "id": 7,
+      "id": "7",
       "content": "nota 6",
       "author": "dev_cl",
       "thread": null,
@@ -64,7 +64,7 @@
       "image": "https://picsum.photos/seed/meme7/600/400"
     },
     {
-      "id": 8,
+      "id": "8",
       "content": "Hola",
       "author": "react_user",
       "thread": null,
@@ -73,7 +73,7 @@
       "image": "https://picsum.photos/seed/meme8/600/400"
     },
     {
-      "id": 9,
+      "id": "9",
       "content": "wena",
       "author": "chilean_dev",
       "thread": 8,

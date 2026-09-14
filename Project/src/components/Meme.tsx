@@ -6,9 +6,6 @@ interface Prop {
 const Meme = ({ meme }: Prop) => (
   <li>
     {meme.content}
-    <link href={meme.image} rel="noopener noreferrer">
-      View Image
-    </link>
     <img src={meme.image} alt="Hola"/>
   </li>
 );
