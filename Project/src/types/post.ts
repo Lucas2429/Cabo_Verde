@@ -5,5 +5,5 @@ export type MemesData = {
   thread: number | null;
   createdAt: string;
   updateAt: string;
-
+  image: string;
 };

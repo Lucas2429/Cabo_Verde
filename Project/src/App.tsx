@@ -1,87 +1,62 @@
 import { useEffect, useState } from "react";
-import Note from "./components/Note";
-import type { NoteData } from "./types/post";
-import noteService from "./services/notes";
+import Meme from "./components/Meme";
+import type { MemesData } from "./types/post";
+import memeService from "./services/meme";
 
 function App() {
-  const [notes, setNotes] = useState<NoteData[]>([]);
-  const [newNote, setNewNote] = useState<string>("");
-  const [showAll, setShowAll] = useState<boolean>(true);
+  const [memes, setMemes] = useState<MemesData[]>([]);
+  const [newMeme, setNewMeme] = useState<string>("");
 
   useEffect(() => {
     console.log("entrando en use effect");
-    noteService.getAll().then((data) => {
+    memeService.getAll().then((data) => {
       console.log("la llamada termino");
-      setNotes(data);
+      setMemes(data);
     });
   }, []);
 
-  const addNote = (event: React.FormEvent<HTMLFormElement>) => {
+  const addMeme = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const noteObject: Omit<NoteData, "id"> = {
-      content: newNote,
-      important: Math.random() < 0.5,
+    const memeObject: Omit<MemesData, "id"> = {
+      content: newMeme,
+      author: "Pedro",
+      thread: null,
+      createdAt: new Date().toISOString(),
+      updateAt: new Date().toISOString(),
+      image: ""
     };
-    noteService.create(noteObject).then((data) => {
-      setNotes(notes.concat(data));
-      setNewNote("");
+    memeService.create(memeObject).then((data) => {
+      setMemes(memes.concat(data));
+      setNewMeme("");
     });
   };
 
-  const handleNoteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMemeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     console.log(event.target.value);
-    setNewNote(event.target.value);
+    setNewMeme(event.target.value);
   };
 
-  const filteredNotes = showAll
-    ? notes
-    : notes.filter((note) => note.important);
-
-  const toggleImportanceOf = (id: number) => {
-    console.log("importance of " + id + " needs to be toggled");
-
-    const note: NoteData | undefined = notes.find((n) => n.id === id);
-
-    if (note) {
-      const changedNote = { ...note, important: !note.important };
-
-      noteService
-        .update(id, changedNote)
-        .then((data) => {
-          setNotes(notes.map((n) => (n.id === id ? data : n)));
-        })
-        .catch((_) => {
-          alert(`the note '${note.content}' was already deleted from server`);
-          setNotes(notes.filter((n) => n.id !== id));
-        });
-    }
-  };
+  const filteredMemes = memes;
 
   return (
     <div>
-      <h1>Notes</h1>
-      <div>
-        <button onClick={() => setShowAll(!showAll)}>
-          show {showAll ? "important" : "all"}
-        </button>
-      </div>
+      <h1>Memes</h1>
       <ul>
-        {filteredNotes.map((note) => (
-          <Note
-            key={note.id}
-            note={note}
-            toggleImportance={() => toggleImportanceOf(note.id)}
+        {filteredMemes.map((meme) => (
+          <Meme
+            key={meme.id}
+            meme={meme}
           />
         ))}
       </ul>
-      <form onSubmit={addNote}>
+      <form onSubmit={addMeme}>
         <input
           type="text"
-          value={newNote}
-          placeholder="Type your note here..."
-          onChange={handleNoteChange}
+          value={newMeme}
+          placeholder="Type your pirulin here..."
+          onChange={handleMemeChange}
         />
-        <button type="submit">Add Note</button>
+        <button type="submit">Add Meme nigga</button>
       </form>
     </div>
   );

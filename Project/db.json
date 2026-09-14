@@ -1,55 +1,85 @@
 {
-  "foobar": [
+  "memes": [
     {
-      "foo": "bar",
-      "id": "a679"
-    }
-  ],
-  "notes": [
-    {
-      "id": "1",
+      "id": 1,
       "content": "HTML is easy",
-      "important": true
+      "author": "web_dev",
+      "thread": null,
+      "createdAt": "2026-09-10T10:00:00.000Z",
+      "updateAt": "2026-09-10T10:00:00.000Z",
+      "image": "https://picsum.photos/seed/meme1/600/400"
     },
     {
-      "id": "2",
+      "id": 2,
       "content": "Browser can execute only JavaScript",
-      "important": false
+      "author": "js_ninja",
+      "thread": 1,
+      "createdAt": "2026-09-11T12:30:00.000Z",
+      "updateAt": "2026-09-11T13:00:00.000Z",
+      "image": "https://picsum.photos/seed/meme2/600/400"
     },
     {
-      "id": "3",
+      "id": 3,
       "content": "GET and POST are the most important methods of HTTP protocol",
-      "important": false
+      "author": "backend_pro",
+      "thread": null,
+      "createdAt": "2026-09-12T08:15:00.000Z",
+      "updateAt": "2026-09-12T08:15:00.000Z",
+      "image": "https://picsum.photos/seed/meme3/600/400"
     },
     {
-      "id": "4",
+      "id": 4,
       "content": "Podemos usar POST para crear nuevos recursos",
-      "important": true
+      "author": "rest_fan",
+      "thread": 3,
+      "createdAt": "2026-09-13T09:45:00.000Z",
+      "updateAt": "2026-09-13T10:00:00.000Z",
+      "image": "https://picsum.photos/seed/meme4/600/400"
     },
     {
-      "id": "5",
+      "id": 5,
       "content": "hola",
-      "important": false
+      "author": "anon_user",
+      "thread": null,
+      "createdAt": "2026-09-14T07:20:00.000Z",
+      "updateAt": "2026-09-14T07:20:00.000Z",
+      "image": "https://picsum.photos/seed/meme5/600/400"
     },
     {
-      "id": "6",
+      "id": 6,
       "content": "test",
-      "important": false
+      "author": "tester_qa",
+      "thread": 5,
+      "createdAt": "2026-09-14T11:00:00.000Z",
+      "updateAt": "2026-09-14T11:05:00.000Z",
+      "image": "https://picsum.photos/seed/meme6/600/400"
     },
     {
-      "id": "7",
-      "content": "nota 6 ",
-      "important": false
+      "id": 7,
+      "content": "nota 6",
+      "author": "dev_cl",
+      "thread": null,
+      "createdAt": "2026-09-14T14:10:00.000Z",
+      "updateAt": "2026-09-14T14:10:00.000Z",
+      "image": "https://picsum.photos/seed/meme7/600/400"
     },
     {
-      "id": "54a3",
+      "id": 8,
       "content": "Hola",
-      "important": true
+      "author": "react_user",
+      "thread": null,
+      "createdAt": "2026-09-14T16:00:00.000Z",
+      "updateAt": "2026-09-14T16:00:00.000Z",
+      "image": "https://picsum.photos/seed/meme8/600/400"
     },
     {
-      "id": "2ab3",
+      "id": 9,
       "content": "wena",
-      "important": true
+      "author": "chilean_dev",
+      "thread": 8,
+      "createdAt": "2026-09-14T18:30:00.000Z",
+      "updateAt": "2026-09-14T18:30:00.000Z",
+      "image": "https://picsum.photos/seed/meme9/600/400"
     }
   ]
 }
