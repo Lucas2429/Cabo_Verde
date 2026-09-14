@@ -1,122 +1,90 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import Note from "./components/Note";
+import type { NoteData } from "./types/notes";
+import noteService from "./services/notes";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [notes, setNotes] = useState<NoteData[]>([]);
+  const [newNote, setNewNote] = useState<string>("");
+  const [showAll, setShowAll] = useState<boolean>(true);
+
+  useEffect(() => {
+    console.log("entrando en use effect");
+    noteService.getAll().then((data) => {
+      console.log("la llamada termino");
+      setNotes(data);
+    });
+  }, []);
+
+  const addNote = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const noteObject: Omit<NoteData, "id"> = {
+      content: newNote,
+      important: Math.random() < 0.5,
+    };
+    noteService.create(noteObject).then((data) => {
+      setNotes(notes.concat(data));
+      setNewNote("");
+    });
+  };
+
+  const handleNoteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(event.target.value);
+    setNewNote(event.target.value);
+  };
+
+  const filteredNotes = showAll
+    ? notes
+    : notes.filter((note) => note.important);
+
+  const toggleImportanceOf = (id: number) => {
+    console.log("importance of " + id + " needs to be toggled");
+
+    const note: NoteData | undefined = notes.find((n) => n.id === id);
+
+    if (note) {
+      const changedNote = { ...note, important: !note.important };
+
+      noteService
+        .update(id, changedNote)
+        .then((data) => {
+          setNotes(notes.map((n) => (n.id === id ? data : n)));
+        })
+        .catch((_) => {
+          alert(`the note '${note.content}' was already deleted from server`);
+          setNotes(notes.filter((n) => n.id !== id));
+        });
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <div>
+      <h1>Notes</h1>
+      <div>
+        <button onClick={() => setShowAll(!showAll)}>
+          show {showAll ? "important" : "all"}
         </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      </div>
+      <ul>
+        {filteredNotes.map((note) => (
+          <Note
+            key={note.id}
+            note={note}
+            toggleImportance={() => toggleImportanceOf(note.id)}
+          />
+        ))}
+      </ul>
+      <form onSubmit={addNote}>
+        <input
+          type="text"
+          value={newNote}
+          placeholder="Type your note here..."
+          onChange={handleNoteChange}
+        />
+        <button type="submit">Add Note</button>
+      </form>
+    </div>
+  );
 }
 
-export default App
+export default App;
