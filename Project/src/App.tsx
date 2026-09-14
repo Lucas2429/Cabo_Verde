@@ -5,7 +5,8 @@ import memeService from "./services/meme";
 
 function App() {
   const [memes, setMemes] = useState<MemesData[]>([]);
-  const [newMeme, setNewMeme] = useState<string>("");
+  const [newImage, setnewImage] = useState<string>("");
+  const [newContent, setnewContent] = useState<string>("");
 
   useEffect(() => {
     console.log("entrando en use effect");
@@ -18,22 +19,27 @@ function App() {
   const addMeme = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const memeObject: Omit<MemesData, "id"> = {
-      content: newMeme,
+      content: newContent,
       author: "Pedro",
       thread: null,
       createdAt: new Date().toISOString(),
       updateAt: new Date().toISOString(),
-      image: ""
+      image: newImage
     };
     memeService.create(memeObject).then((data) => {
       setMemes(memes.concat(data));
-      setNewMeme("");
+      setnewContent("");
     });
   };
 
   const handleMemeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     console.log(event.target.value);
-    setNewMeme(event.target.value);
+    setnewContent(event.target.value);
+  };
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(event.target.value);
+    setnewImage(event.target.value);
   };
 
   const filteredMemes = memes;
@@ -52,11 +58,17 @@ function App() {
       <form onSubmit={addMeme}>
         <input
           type="text"
-          value={newMeme}
+          value={newContent}
           placeholder="Type your pirulin here..."
           onChange={handleMemeChange}
         />
-        <button type="submit">Add Meme nigga</button>
+        <input
+          type="text"
+          value={newImage}
+          placeholder="Type your URL here..."
+          onChange={handleImageChange}
+        />
+        <button type="submit">Add Meme</button>
       </form>
     </div>
   );
