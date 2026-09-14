@@ -1,4 +1,4 @@
-import type { NoteData } from "../types/notes";
+import type { NoteData } from "../types/post";
 
 interface Prop {
   note: NoteData;

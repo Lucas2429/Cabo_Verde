@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Note from "./components/Note";
-import type { NoteData } from "./types/notes";
+import type { NoteData } from "./types/post";
 import noteService from "./services/notes";
 
 function App() {

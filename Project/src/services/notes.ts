@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { NoteData } from "../types/notes";
+import type { NoteData } from "../types/post";
 const baseUrl = "http://localhost:3001/notes";
 
 const getAll = () => {
