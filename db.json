@@ -89,24 +89,6 @@
       "createdAt": "2026-09-14T23:20:14.204Z",
       "updateAt": "2026-09-14T23:20:14.209Z",
       "image": "https://picsum.photos/seed/meme10/600/400"
-    },
-    {
-      "content": "asd",
-      "author": "Pedro",
-      "thread": null,
-      "createdAt": "2026-09-15T22:02:00.494Z",
-      "updateAt": "2026-09-15T22:02:00.494Z",
-      "image": "asda",
-      "id": "wk7oJtUy6PA"
-    },
-    {
-      "content": "ac",
-      "author": "Pedro",
-      "thread": null,
-      "createdAt": "2026-09-15T22:03:11.296Z",
-      "updateAt": "2026-09-15T22:03:11.296Z",
-      "image": "asda",
-      "id": "hkbuBA-yevk"
     }
   ],
   "$schema": "./node_modules/json-server/schema.json"

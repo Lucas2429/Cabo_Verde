@@ -33,6 +33,7 @@ function App() {
     memeService.create(memeObject).then((data) => {
       setMemes(memes.concat(data));
       setnewContent("");
+      setnewImage("");
     });
     setModalPostear(false);
   };
