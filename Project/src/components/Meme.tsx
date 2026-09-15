@@ -4,10 +4,10 @@ interface Prop {
   meme: MemesData;
 }
 const Meme = ({ meme }: Prop) => (
-  <li>
-    {meme.content}
-    <img src={meme.image} alt="Hola"/>
-  </li>
+  <div className="box_meme">
+    <img src={meme.image} alt="No carga el meme" style={{borderRadius: '20px'}}/>
+    <h3 style={{padding: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meme.content}</h3>
+  </div>
 );
 
 export default Meme;
