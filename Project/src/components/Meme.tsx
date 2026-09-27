@@ -1,12 +1,42 @@
 import type { MemesData } from "../types/post";
+import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
+import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
 
 interface Prop {
   meme: MemesData;
 }
+
 const Meme = ({ meme }: Prop) => (
-  <div className="box_meme">
-    <img src={meme.image} alt="No carga el meme" style={{borderRadius: '20px'}}/>
-    <h3 style={{padding: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meme.content}</h3>
+  <div className="group bg-[#dadada] rounded-[28px] p-3 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full flex flex-col">
+    
+    <h3 className="pt-2 px-2 pb-1 text-sm text-gray-800 font-medium break-words leading-snug">
+      {meme.content}
+    </h3>
+
+    <div className="relative overflow-hidden rounded-[20px] bg-gray-300 w-full">
+      <img
+        src={meme.image}
+        alt={meme.content || "Meme"}
+        className="w-full h-auto object-cover block"
+        loading="lazy"
+      />
+
+      <div className="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-xs p-2 text-white flex items-center justify-around translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out">
+        <button
+          onClick={(e) => e.stopPropagation()}
+          className="hover:text-green-400 transition-colors p-1.5 rounded-full hover:bg-white/10 flex items-center justify-center cursor-pointer"
+        >
+          <ThumbUpOffAltIcon />
+        </button>
+        <button
+          onClick={(e) => e.stopPropagation()} 
+          className="hover:text-red-400 transition-colors p-1.5 rounded-full hover:bg-white/10 flex items-center justify-center cursor-pointer"
+        >
+          <ThumbDownOffAltIcon />
+        </button>
+      </div>
+    </div>
+
   </div>
 );
 
