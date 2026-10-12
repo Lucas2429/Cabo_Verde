@@ -1,9 +1,8 @@
 export type MemesData = {
-  id: number;
+  id: string;
   content: string;
   author: string;
-  thread: number | null;
-  createdAt: string;
-  updateAt: string;
   image: string;
+  createdAt: string;
+  updatedAt: string;
 };
