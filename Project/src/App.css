@@ -43,18 +43,8 @@
 
 .boton_postear {
   text-align: center;
-  border: solid 2px;
   cursor: pointer;
-  border-radius: 50px;
-  width: 100px;
   position: fixed;
   right: 20px;
   bottom: 20px;
-  background-color: #b4b4b4;
-  padding: 20px;
-  font-size: 40px;
-}
-
-.boton_postear:hover {
-    background-color: #868686;
 }
