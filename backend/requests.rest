@@ -1,0 +1,64 @@
+### Crear un usuario
+POST http://localhost:3001/api/users
+Content-Type: application/json
+
+{
+  "username": "root",
+  "email": "root@example.com",
+  "password": "sekret"
+}
+
+### Listar usuarios
+GET http://localhost:3001/api/users
+
+### Login (REST Client guarda la cookie `token` para las peticiones siguientes)
+# @name login
+POST http://localhost:3001/api/login
+Content-Type: application/json
+
+{
+  "username": "root",
+  "password": "sekret"
+}
+
+### Usuario de la sesión actual
+GET http://localhost:3001/api/login/me
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Listar memes (público, no requiere sesión)
+GET http://localhost:3001/api/memes
+
+### Subir un meme (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
+# Cambia ./meme.png por la ruta de una imagen real.
+POST http://localhost:3001/api/memes
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Mi primer meme desde REST Client
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="meme.png"
+Content-Type: image/png
+
+< ./meme.png
+------CaboVerdeBoundary--
+
+### Subir un meme como invitado (sin cookie ni CSRF) -> debe responder 401
+POST http://localhost:3001/api/memes
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Intento de invitado
+------CaboVerdeBoundary--
+
+### Cerrar sesión
+POST http://localhost:3001/api/login/logout
+
+### LAB 8 - P3: reiniciar la base de datos de pruebas
+# Solo existe si el backend se inició con NODE_ENV=test (npm run start:test).
+# En cualquier otro entorno responde 404 "unknown endpoint".
+POST http://localhost:3001/api/testing/reset

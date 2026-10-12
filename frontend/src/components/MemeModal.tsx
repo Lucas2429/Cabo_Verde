@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { MemesData } from "../types/post";
+import type { MemesData } from "../types/memesData";
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
 import CloseIcon from '@mui/icons-material/Close';
