@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  /* Fuente condensada del título (se carga desde index.html). */
+  --font-display: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
+}
+
 .mybutton {
   background: yellow;
   padding: 8px;

@@ -86,9 +86,9 @@ function LoginPage() {
     }`;
 
   return (
-    <div className="bg-[#5a6c8a] min-h-screen flex flex-col items-center justify-center px-4 py-10">
-      <div className="bg-[#dadada] text-center py-4 px-6 rounded-full w-full max-w-md shadow-md mb-6">
-        <h1 className="text-lg md:text-xl font-bold tracking-wide text-gray-800 uppercase">
+    <div className="bg-[#52648a] min-h-screen flex flex-col items-center justify-center px-4 py-10">
+      <div className="bg-[#b4b4b4] text-center py-4 px-6 rounded-full w-full max-w-md shadow-md mb-6">
+        <h1 className="font-display text-3xl md:text-4xl tracking-wide text-black leading-none">
           HIJOS DE LA (PUNTO).FOO
         </h1>
       </div>

@@ -130,9 +130,9 @@ utils/image.ts          Validación de imágenes (tipo y tamaño)
 types/                  Tipos de TypeScript
 ```
 
-- **Invitados:** ven la galería y un botón "Iniciar sesión". No ven el botón `+` para subir memes (y aunque lo intentaran, el backend responde `401`).
+- **Invitados:** ven la galería y un botón "Iniciar sesión". Si tocan el botón `+` para subir un meme, los lleva al login (y aunque lo intentaran por otro lado, el backend responde `401`).
 - **Usuarios con sesión:** ven su nombre, "Cerrar sesión" y el botón `+`. La sesión se recuerda al recargar la página (se guarda el nombre y el token CSRF en `localStorage`; la sesión real vive en la cookie) y se valida con el backend al abrir el sitio.
-- **Galería:** columnas tipo Pinterest, cada imagen con su proporción natural. Las imágenes muy largas se recortan a 800 px de alto en la tarjeta (`Meme.tsx`) y se ven completas al abrir el meme.
+- **Galería:** columnas tipo Pinterest que se adaptan al ancho de la pantalla (columnas de ~18rem: 1 en celular, 4 en un notebook, 6 o más en un monitor ultrawide; el ancho máximo de la página es 2000 px, en `Home.tsx`), cada imagen con su proporción natural. Las imágenes muy largas se recortan a 800 px de alto en la tarjeta (`Meme.tsx`) y se ven completas al abrir el meme.
 - **Formulario de subida:** vista previa de la imagen y validación de formato y tamaño antes de enviar. Si el backend rechaza algo, se muestra el motivo.
 
 ### Cambiar el límite de tamaño
