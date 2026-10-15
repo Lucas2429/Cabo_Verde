@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import type { MemesData } from "../types/memesData";
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
@@ -60,9 +61,13 @@ const MemeModal = ({ meme, onClose }: MemeModalProps) => {
         <div className="w-full md:w-96 flex flex-col bg-gray-50 dark:bg-gray-900 h-1/2 md:h-full border-l border-gray-200 dark:border-gray-800">
           <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                {meme.author || "Pedro"}
-              </span>
+              <Link
+                to={`/u/${encodeURIComponent(meme.author)}`}
+                title="Ver perfil"
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hover:underline"
+              >
+                {meme.author}
+              </Link>
               <span className="text-xs text-gray-400">
                 {new Date(meme.createdAt).toLocaleDateString()}
               </span>

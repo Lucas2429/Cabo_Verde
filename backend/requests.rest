@@ -12,6 +12,19 @@ Content-Type: application/json
 ### Listar usuarios
 GET http://localhost:3001/api/users
 
+### Perfil público de un usuario (no requiere sesión)
+GET http://localhost:3001/api/users/root
+
+### Editar mi perfil (requiere sesión; displayName puede repetirse entre usuarios)
+PATCH http://localhost:3001/api/users/me
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "displayName": "Viva Wanderers",
+  "description": "Instituto Profesional del Colo-Colo"
+}
+
 ### Login (REST Client guarda la cookie `token` para las peticiones siguientes)
 # @name login
 POST http://localhost:3001/api/login
