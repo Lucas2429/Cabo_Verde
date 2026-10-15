@@ -1,17 +1,29 @@
 import type { MemesData } from "../types/memesData";
+import type { ReactionType } from "../types/reaction";
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
+import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
+import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
 import CloseIcon from '@mui/icons-material/Close';
 import Comments from "./Comments";
 
 interface MemeModalProps {
   meme: MemesData | null;
+  // Reacción del usuario con sesión a este meme (null si no ha reaccionado).
+  reaction: ReactionType | null;
+  onReact: (type: ReactionType) => void;
   onClose: () => void;
   // Se llama si el backend responde 401 al comentar (la sesión expiró).
   onSessionExpired: () => void;
 }
 
-const MemeModal = ({ meme, onClose, onSessionExpired }: MemeModalProps) => {
+const MemeModal = ({
+  meme,
+  reaction,
+  onReact,
+  onClose,
+  onSessionExpired,
+}: MemeModalProps) => {
   if (!meme) return null;
 
   return (
@@ -38,14 +50,31 @@ const MemeModal = ({ meme, onClose, onSessionExpired }: MemeModalProps) => {
             />
           </div>
           <div className="bg-gray-950/80 backdrop-blur-md p-4 flex items-center justify-around text-white border-t border-gray-800">
-            <button className="flex items-center gap-2 hover:text-green-400 transition-colors py-1.5 px-4 rounded-full hover:bg-white/10 cursor-pointer">
-              <ThumbUpOffAltIcon />
+            {/* Si el invitado no tiene sesión, onReact lo lleva al login. */}
+            <button
+              type="button"
+              aria-pressed={reaction === "like"}
+              onClick={() => onReact("like")}
+              className={`flex items-center gap-2 hover:text-green-400 transition-colors py-1.5 px-4 rounded-full hover:bg-white/10 cursor-pointer ${
+                reaction === "like" ? "text-green-400" : ""
+              }`}
+            >
+              {reaction === "like" ? <ThumbUpAltIcon /> : <ThumbUpOffAltIcon />}
               <span className="text-sm font-medium">Me gusta</span>
+              <span className="text-sm font-semibold tabular-nums">{meme.likes}</span>
             </button>
             <div className="h-6 w-[1px] bg-gray-700"></div>
-            <button className="flex items-center gap-2 hover:text-red-400 transition-colors py-1.5 px-4 rounded-full hover:bg-white/10 cursor-pointer">
-              <ThumbDownOffAltIcon />
+            <button
+              type="button"
+              aria-pressed={reaction === "dislike"}
+              onClick={() => onReact("dislike")}
+              className={`flex items-center gap-2 hover:text-red-400 transition-colors py-1.5 px-4 rounded-full hover:bg-white/10 cursor-pointer ${
+                reaction === "dislike" ? "text-red-400" : ""
+              }`}
+            >
+              {reaction === "dislike" ? <ThumbDownAltIcon /> : <ThumbDownOffAltIcon />}
               <span className="text-sm font-medium">No me gusta</span>
+              <span className="text-sm font-semibold tabular-nums">{meme.dislikes}</span>
             </button>
           </div>
         </div>

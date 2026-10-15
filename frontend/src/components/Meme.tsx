@@ -1,17 +1,23 @@
 import type { MemesData } from "../types/memesData";
+import type { ReactionType } from "../types/reaction";
 import ThumbUpOffAltIcon from "@mui/icons-material/ThumbUpOffAlt";
+import ThumbUpAltIcon from "@mui/icons-material/ThumbUpAlt";
 import ThumbDownOffAltIcon from "@mui/icons-material/ThumbDownOffAlt";
+import ThumbDownAltIcon from "@mui/icons-material/ThumbDownAlt";
 import ReportOutlinedIcon from "@mui/icons-material/ReportOutlined";
 import ChatBubbleOutlinedIcon from "@mui/icons-material/ChatBubbleOutlined";
 
 interface Prop {
   meme: MemesData;
+  // Reacción del usuario con sesión a este meme (null si no ha reaccionado).
+  reaction: ReactionType | null;
+  onReact: (type: ReactionType) => void;
 }
 
 const actionClass =
   "p-1.5 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-110 hover:bg-white/10";
 
-const Meme = ({ meme }: Prop) => (
+const Meme = ({ meme, reaction, onReact }: Prop) => (
   <div className="group relative overflow-hidden rounded-[22px] bg-gray-300 shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
     <img
       src={meme.image}
@@ -30,23 +36,38 @@ const Meme = ({ meme }: Prop) => (
 
     {/* Botones: suben desde abajo al pasar el mouse. */}
     <div className="absolute bottom-3 inset-x-0 mx-auto w-fit flex items-center gap-1 rounded-full bg-gray-700/85 backdrop-blur-xs px-3 py-1.5 shadow-lg translate-y-[200%] group-hover:translate-y-0 transition-transform duration-300 ease-in-out">
+      {/* Si el invitado no tiene sesión, onReact lo lleva al login. */}
       <button
         type="button"
         title="Me gusta"
         aria-label="Me gusta"
-        onClick={(e) => e.stopPropagation()}
-        className={`${actionClass} text-cyan-300`}
+        aria-pressed={reaction === "like"}
+        onClick={(e) => {
+          e.stopPropagation();
+          onReact("like");
+        }}
+        className={`${actionClass} gap-1 px-2.5 ${
+          reaction === "like" ? "text-green-400" : "text-cyan-300"
+        }`}
       >
-        <ThumbUpOffAltIcon />
+        {reaction === "like" ? <ThumbUpAltIcon /> : <ThumbUpOffAltIcon />}
+        <span className="text-xs font-semibold tabular-nums">{meme.likes}</span>
       </button>
       <button
         type="button"
         title="No me gusta"
         aria-label="No me gusta"
-        onClick={(e) => e.stopPropagation()}
-        className={`${actionClass} text-cyan-300`}
+        aria-pressed={reaction === "dislike"}
+        onClick={(e) => {
+          e.stopPropagation();
+          onReact("dislike");
+        }}
+        className={`${actionClass} gap-1 px-2.5 ${
+          reaction === "dislike" ? "text-red-400" : "text-cyan-300"
+        }`}
       >
-        <ThumbDownOffAltIcon />
+        {reaction === "dislike" ? <ThumbDownAltIcon /> : <ThumbDownOffAltIcon />}
+        <span className="text-xs font-semibold tabular-nums">{meme.dislikes}</span>
       </button>
       <button
         type="button"
