@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import authService, { getStoredSession } from "../services/auth";
 import type { Session } from "../types/auth";
+import type { Department } from "../types/departments";
 import { AuthContext, type AuthContextValue } from "./auth";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -26,8 +27,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const register = useCallback(
-    async (username: string, email: string, password: string) => {
-      setSession(await authService.register(username, email, password));
+    async (
+      username: string,
+      email: string,
+      password: string,
+      department: Department
+    ) => {
+      setSession(await authService.register(username, email, password, department));
     },
     []
   );

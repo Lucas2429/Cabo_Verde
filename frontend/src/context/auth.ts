@@ -1,10 +1,16 @@
 import { createContext, useContext } from "react";
+import type { Department } from "../types/departments";
 
 export interface AuthContextValue {
   // Nombre del usuario con sesión, o null si es invitado.
   username: string | null;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (
+    username: string,
+    email: string,
+    password: string,
+    department: Department
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 

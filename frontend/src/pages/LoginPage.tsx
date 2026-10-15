@@ -2,6 +2,8 @@ import { useState } from "react";
 import axios from "axios";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth";
+import DepartmentSelect from "../components/DepartmentSelect";
+import type { Department } from "../types/departments";
 
 type Mode = "login" | "register";
 
@@ -28,6 +30,9 @@ const describeError = (error: unknown, mode: Mode): string => {
       if (serverMessage.includes("password must be")) {
         return "La contraseña debe tener al menos 3 caracteres.";
       }
+      if (serverMessage.includes("department must be")) {
+        return "Selecciona un departamento válido.";
+      }
       if (serverMessage.includes("username must be")) {
         return "El usuario debe tener al menos 3 caracteres.";
       }
@@ -48,6 +53,7 @@ function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [department, setDepartment] = useState<Department | "">("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,13 +71,18 @@ function LoginPage() {
     event.preventDefault();
     if (submitting) return;
 
+    if (mode === "register" && !department) {
+      setError("Selecciona tu departamento.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
       if (mode === "login") {
         await login(username.trim(), password);
       } else {
-        await register(username.trim(), email.trim(), password);
+        await register(username.trim(), email.trim(), password, department as Department);
       }
       navigate("/");
     } catch (err) {
@@ -164,6 +175,22 @@ function LoginPage() {
               className={inputClass}
             />
           </div>
+
+          {mode === "register" && (
+            <div>
+              <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
+                Departamento
+              </label>
+              <DepartmentSelect
+                id="department"
+                value={department}
+                onChange={(d) => {
+                  setDepartment(d);
+                  setError(null);
+                }}
+              />
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="text-sm text-red-600">

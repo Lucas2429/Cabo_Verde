@@ -5,7 +5,8 @@ Content-Type: application/json
 {
   "username": "root",
   "email": "root@example.com",
-  "password": "sekret"
+  "password": "sekret",
+  "department": "DCC"
 }
 
 ### Listar usuarios
