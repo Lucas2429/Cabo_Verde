@@ -1,25 +1,17 @@
-import { useState } from "react";
 import type { MemesData } from "../types/memesData";
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
 import CloseIcon from '@mui/icons-material/Close';
-import SendIcon from '@mui/icons-material/Send';
+import Comments from "./Comments";
 
 interface MemeModalProps {
   meme: MemesData | null;
   onClose: () => void;
+  // Se llama si el backend responde 401 al comentar (la sesión expiró).
+  onSessionExpired: () => void;
 }
 
-// Comentarios de prueba visuales
-const MOCK_COMMENTS = [
-  { id: 1, author: "Juan", text: "Jajaja excelente meme 10/10", time: "Hace 5m" },
-  { id: 2, author: "María", text: "Muy real, me pasó ayer.", time: "Hace 12m" },
-  { id: 3, author: "Carlos", text: "No entendí pero le doy like.", time: "Hace 1h" },
-];
-
-const MemeModal = ({ meme, onClose }: MemeModalProps) => {
-  const [commentText, setCommentText] = useState("");
-
+const MemeModal = ({ meme, onClose, onSessionExpired }: MemeModalProps) => {
   if (!meme) return null;
 
   return (
@@ -71,52 +63,14 @@ const MemeModal = ({ meme, onClose }: MemeModalProps) => {
               {meme.content}
             </p>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Comentarios
-            </h4>
 
-            {MOCK_COMMENTS.map((comment) => (
-              <div key={comment.id} className="flex gap-3 text-sm">
-                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                  {comment.author[0]}
-                </div>
-                <div className="flex-1 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-700">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-semibold text-xs text-gray-900 dark:text-gray-100">
-                      {comment.author}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      {comment.time}
-                    </span>
-                  </div>
-                  <p className="text-gray-700 dark:text-gray-300 text-xs">
-                    {comment.text}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-            <form 
-              onSubmit={(e) => e.preventDefault()} 
-              className="flex items-center gap-2"
-            >
-              <input
-                type="text"
-                placeholder="Escribe un comentario..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm px-4 py-2.5 rounded-full border-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-full transition-colors flex items-center justify-center shrink-0 cursor-pointer"
-              >
-                <SendIcon fontSize="small" />
-              </button>
-            </form>
-          </div>
+          {/* Lista y formulario de comentarios. El key reinicia el estado al
+              abrir otro meme. */}
+          <Comments
+            key={meme.id}
+            memeId={meme.id}
+            onSessionExpired={onSessionExpired}
+          />
 
         </div>
 

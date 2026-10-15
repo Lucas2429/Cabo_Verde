@@ -3,10 +3,14 @@ import MemeModel from "../models/memes";
 import User from "../models/user";
 import { withUser } from "../utils/middleware";
 import { removeImage, saveImage, uploadImage } from "../utils/upload";
+import commentsRouter from "./comments";
 
 const MAX_CONTENT_LENGTH = 300;
 
 const router = express.Router();
+
+// Comentarios de un meme: /api/memes/:id/comments
+router.use("/:id/comments", commentsRouter);
 
 // Público: cualquiera (incluidos invitados) puede ver los memes.
 router.get("/", async (_request, response) => {

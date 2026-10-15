@@ -55,6 +55,27 @@ Content-Disposition: form-data; name="content"
 Intento de invitado
 ------CaboVerdeBoundary--
 
+### Listar los comentarios de un meme (público, no requiere sesión)
+# Cambia <ID_DEL_MEME> por el id de un meme real (campo `id` de GET /api/memes).
+GET http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+
+### Comentar un meme (requiere sesión; 1 a 300 caracteres)
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Jajaja excelente meme"
+}
+
+### Comentar como invitado (sin cookie ni CSRF) -> debe responder 401
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+Content-Type: application/json
+
+{
+  "content": "Intento de invitado"
+}
+
 ### Cerrar sesión
 POST http://localhost:3001/api/login/logout
 

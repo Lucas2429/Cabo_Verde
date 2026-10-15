@@ -45,6 +45,7 @@ function Home() {
 
   const handleSessionExpired = async () => {
     setModalPostear(false);
+    setSelectedMeme(null);
     await logout();
     navigate("/login");
   };
@@ -143,7 +144,11 @@ function Home() {
           </div>
         </main>
 
-        <MemeModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} />
+        <MemeModal
+          meme={selectedMeme}
+          onClose={() => setSelectedMeme(null)}
+          onSessionExpired={handleSessionExpired}
+        />
 
         {canUpload && modalPostear && (
           <UploadMemeModal

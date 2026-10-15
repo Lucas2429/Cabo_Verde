@@ -2,7 +2,7 @@
 
 CC5003 - Aplicaciones Web Reactivas
 
-Sitio de memes estilo Pinterest: cualquiera puede ver los memes, pero solo los usuarios con sesión pueden subir uno (una imagen + una descripción).
+Sitio de memes estilo Pinterest: cualquiera puede ver los memes y sus comentarios, pero solo los usuarios con sesión pueden subir un meme (una imagen + una descripción) o comentar.
 
 ## Estructura
 
@@ -63,11 +63,13 @@ app.ts                  Configuración de Express, rutas y archivos estáticos
 index.ts                Arranca el servidor
 controllers/
   memes.ts              Listar memes y subir uno nuevo
+  comments.ts           Listar y crear comentarios de un meme
   users.ts              Registro de usuarios
   login.ts              Login, sesión actual y logout
   testing.ts            Reinicio de la BD (solo con NODE_ENV=test)
 models/
   memes.ts              Esquema del meme
+  comment.ts            Esquema del comentario
   user.ts               Esquema del usuario
 utils/
   upload.ts             Subida y validación de imágenes
@@ -82,6 +84,8 @@ utils/
 | GET | `/api/memes` | No | Lista los memes, del más nuevo al más viejo |
 | GET | `/api/memes/:id` | No | Un meme |
 | POST | `/api/memes` | **Sí** | Sube un meme (`multipart/form-data`: `content` e `image`) |
+| GET | `/api/memes/:id/comments` | No | Lista los comentarios de un meme, del más nuevo al más viejo |
+| POST | `/api/memes/:id/comments` | **Sí** | Comenta un meme (JSON: `content`, 1 a 300 caracteres) |
 | POST | `/api/users` | No | Crea un usuario (`username`, `email`, `password`) |
 | POST | `/api/login` | No | Inicia sesión |
 | GET | `/api/login/me` | Sí | Datos del usuario de la sesión |
@@ -119,6 +123,7 @@ pages/
 components/
   Meme.tsx              Tarjeta de un meme en la galería
   MemeModal.tsx         Vista ampliada de un meme (imagen completa)
+  Comments.tsx          Lista de comentarios y formulario para comentar
   UploadMemeModal.tsx   Formulario para subir un meme
 context/
   auth.ts               Contexto y hook useAuth()
@@ -126,12 +131,15 @@ context/
 services/
   auth.ts               Llamadas de login, registro, logout
   meme.ts               Llamadas para listar y subir memes
-utils/image.ts          Validación de imágenes (tipo y tamaño)
+  comment.ts            Llamadas para listar y crear comentarios
+utils/
+  image.ts              Validación de imágenes (tipo y tamaño)
+  time.ts               Tiempo relativo ("Hace 5m") para los comentarios
 types/                  Tipos de TypeScript
 ```
 
-- **Invitados:** ven la galería y un botón "Iniciar sesión". Si tocan el botón `+` para subir un meme, los lleva al login (y aunque lo intentaran por otro lado, el backend responde `401`).
-- **Usuarios con sesión:** ven su nombre, "Cerrar sesión" y el botón `+`. La sesión se recuerda al recargar la página (se guarda el nombre y el token CSRF en `localStorage`; la sesión real vive en la cookie) y se valida con el backend al abrir el sitio.
+- **Invitados:** ven la galería, los comentarios y un botón "Iniciar sesión". Si tocan el botón `+` para subir un meme, los lleva al login (y aunque lo intentaran por otro lado, el backend responde `401`). En un meme, en lugar del cuadro para escribir ven un enlace "Inicia sesión para comentar".
+- **Usuarios con sesión:** ven su nombre, "Cerrar sesión" y el botón `+`, y pueden comentar al abrir un meme. La sesión se recuerda al recargar la página (se guarda el nombre y el token CSRF en `localStorage`; la sesión real vive en la cookie) y se valida con el backend al abrir el sitio.
 - **Galería:** columnas tipo Pinterest que se adaptan al ancho de la pantalla (columnas de ~18rem: 1 en celular, 4 en un notebook, 6 o más en un monitor ultrawide; el ancho máximo de la página es 2000 px, en `Home.tsx`), cada imagen con su proporción natural. Las imágenes muy largas se recortan a 800 px de alto en la tarjeta (`Meme.tsx`) y se ven completas al abrir el meme.
 - **Formulario de subida:** vista previa de la imagen y validación de formato y tamaño antes de enviar. Si el backend rechaza algo, se muestra el motivo.
 
@@ -162,4 +170,4 @@ cd backend
 npm run dev:test    # usa MONGODB_DBNAME_TEST y habilita /api/testing/reset
 ```
 
-`POST /api/testing/reset` vacía los memes y usuarios de la base de pruebas. Solo existe con `NODE_ENV=test`.
+`POST /api/testing/reset` vacía los memes, comentarios y usuarios de la base de pruebas. Solo existe con `NODE_ENV=test`.

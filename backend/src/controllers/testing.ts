@@ -1,4 +1,5 @@
 import express from "express";
+import CommentModel from "../models/comment";
 import MemeModel from "../models/memes";
 import User from "../models/user";
 
@@ -7,9 +8,10 @@ import User from "../models/user";
 const router = express.Router();
 
 // POST /api/testing/reset
-// Deja la base de datos de pruebas vacía (memes y usuarios) para que
+// Deja la base de datos de pruebas vacía (memes, comentarios y usuarios) para que
 // cada test E2E parta desde un estado conocido.
 router.post("/reset", async (request, response) => {
+  await CommentModel.deleteMany({});
   await MemeModel.deleteMany({});
   await User.deleteMany({});
 
