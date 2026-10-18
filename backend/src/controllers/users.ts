@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import express from "express";
 import MemeModel from "../models/memes";
+import { withReactionCounts } from "../models/reaction";
 import User, {
   DEFAULT_DEPARTMENT,
   DEPARTMENTS,
@@ -133,7 +134,8 @@ router.patch("/me", withUser, async (request, response) => {
 });
 
 // Perfil público (también para invitados): datos del usuario, cantidad de
-// memes publicados y los últimos memes. No incluye correo ni nada privado.
+// memes publicados y los últimos memes (con sus likes y dislikes). No incluye
+// correo ni nada privado.
 router.get("/:username", async (request, response) => {
   const user = await User.findOne({ username: request.params.username });
   if (!user) {
@@ -154,7 +156,7 @@ router.get("/:username", async (request, response) => {
     description: user.description ?? "",
     department: user.department,
     memesCount,
-    latestMemes,
+    latestMemes: await withReactionCounts(latestMemes),
   });
 });
 

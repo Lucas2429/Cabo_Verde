@@ -1,8 +1,8 @@
 import express from "express";
 import MemeModel from "../models/memes";
 import ReactionModel, {
-  getReactionCounts,
-  type ReactionCounts,
+  NO_REACTIONS,
+  withReactionCounts,
   type ReactionType,
 } from "../models/reaction";
 import User from "../models/user";
@@ -12,8 +12,6 @@ import commentsRouter from "./comments";
 import reactionsRouter from "./reactions";
 
 const MAX_CONTENT_LENGTH = 300;
-
-const NO_REACTIONS: ReactionCounts = { likes: 0, dislikes: 0 };
 
 const router = express.Router();
 
@@ -27,14 +25,7 @@ router.use("/:id/reaction", reactionsRouter);
 // totales de likes y dislikes.
 router.get("/", async (_request, response) => {
   const memes = await MemeModel.find({}).sort({ createdAt: -1 });
-  const counts = await getReactionCounts(memes.map((meme) => meme._id));
-
-  response.json(
-    memes.map((meme) => ({
-      ...meme.toJSON(),
-      ...(counts.get(meme.id) ?? NO_REACTIONS),
-    }))
-  );
+  response.json(await withReactionCounts(memes));
 });
 
 // Solo usuarios con sesión: la reacción que el usuario puso en cada meme, como
@@ -56,8 +47,8 @@ router.get("/:id", async (request, response) => {
     response.status(404).end();
     return;
   }
-  const counts = await getReactionCounts([meme._id]);
-  response.json({ ...meme.toJSON(), ...(counts.get(meme.id) ?? NO_REACTIONS) });
+  const [memeWithCounts] = await withReactionCounts([meme]);
+  response.json(memeWithCounts);
 });
 
 // Solo usuarios con sesión. Se exige sesión ANTES de procesar el archivo, así

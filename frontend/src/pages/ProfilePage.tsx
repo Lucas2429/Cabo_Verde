@@ -6,8 +6,8 @@ import Header from "../components/Header";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import userService from "../services/user";
+import { useReactions } from "../hooks/useReactions";
 import { useAuth } from "../context/auth";
-import type { MemesData } from "../types/memesData";
 import {
   MAX_DESCRIPTION_LENGTH,
   MAX_DISPLAY_NAME_LENGTH,
@@ -153,7 +153,14 @@ function ProfileView({ username }: { username: string }) {
 
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [editing, setEditing] = useState(false);
-  const [selectedMeme, setSelectedMeme] = useState<MemesData | null>(null);
+  // Se guarda solo el id (y no una copia del meme) para que el modal siempre
+  // muestre los likes y dislikes actualizados del perfil.
+  const [selectedMemeId, setSelectedMemeId] = useState<string | null>(null);
+
+  const selectedMeme =
+    state.status === "ok"
+      ? state.profile.latestMemes.find((meme) => meme.id === selectedMemeId) ?? null
+      : null;
 
   // SOLO FRONTEND: los reportes no existen en el backend. Estos valores viven
   // en memoria y se reinician al recargar o cambiar de perfil.
@@ -183,9 +190,30 @@ function ProfileView({ username }: { username: string }) {
   };
 
   const handleSessionExpired = async () => {
+    setSelectedMemeId(null);
     await logout();
     navigate("/login");
   };
+
+  // Like / dislike (lógica compartida con la galería). Aquí solo se indica cómo
+  // actualizar los totales dentro de los memes del perfil.
+  const { myReactions, handleReact } = useReactions({
+    onCountsChange: (memeId, counts) =>
+      setState((prev) =>
+        prev.status === "ok"
+          ? {
+              status: "ok",
+              profile: {
+                ...prev.profile,
+                latestMemes: prev.profile.latestMemes.map((meme) =>
+                  meme.id === memeId ? { ...meme, ...counts } : meme
+                ),
+              },
+            }
+          : prev
+      ),
+    onSessionExpired: handleSessionExpired,
+  });
 
   const handleReport = () => {
     setReported(true);
@@ -306,8 +334,12 @@ function ProfileView({ username }: { username: string }) {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-start">
                 {profile.latestMemes.map((meme) => (
-                  <div key={meme.id} onClick={() => setSelectedMeme(meme)}>
-                    <Meme meme={meme} />
+                  <div key={meme.id} onClick={() => setSelectedMemeId(meme.id)}>
+                    <Meme
+                      meme={meme}
+                      reaction={myReactions[meme.id] ?? null}
+                      onReact={(type) => handleReact(meme.id, type)}
+                    />
                   </div>
                 ))}
               </div>
@@ -327,7 +359,15 @@ function ProfileView({ username }: { username: string }) {
           {renderContent()}
         </main>
 
-        <MemeModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} />
+        <MemeModal
+          meme={selectedMeme}
+          reaction={selectedMeme ? myReactions[selectedMeme.id] ?? null : null}
+          onReact={(type) => {
+            if (selectedMeme) handleReact(selectedMeme.id, type);
+          }}
+          onClose={() => setSelectedMemeId(null)}
+          onSessionExpired={handleSessionExpired}
+        />
       </div>
 
       <footer className="px-4 pb-3 text-xs sm:text-sm font-bold text-white">

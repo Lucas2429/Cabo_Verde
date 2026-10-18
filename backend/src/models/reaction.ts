@@ -41,6 +41,9 @@ export interface ReactionCounts {
   dislikes: number;
 }
 
+// Totales de un meme que todavía no tiene reacciones.
+export const NO_REACTIONS: ReactionCounts = { likes: 0, dislikes: 0 };
+
 // Cuenta los likes y dislikes de varios memes en una sola consulta. La clave
 // del Map es el id del meme (string); los memes sin reacciones no aparecen.
 export const getReactionCounts = async (
@@ -66,6 +69,21 @@ export const getReactionCounts = async (
     counts.set(key, entry);
   }
   return counts;
+};
+
+// Serializa memes (documentos de Mongoose) agregando sus totales `likes` y
+// `dislikes`. TODO endpoint que devuelva memes debe pasar por aquí, para que el
+// frontend siempre reciba la misma forma (si no, los contadores salen vacíos).
+export const withReactionCounts = async <
+  T extends { _id: mongoose.Types.ObjectId; toJSON(): object }
+>(
+  memes: T[]
+) => {
+  const counts = await getReactionCounts(memes.map((meme) => meme._id));
+  return memes.map((meme) => ({
+    ...meme.toJSON(),
+    ...(counts.get(meme._id.toString()) ?? NO_REACTIONS),
+  }));
 };
 
 export default ReactionModel;
