@@ -74,6 +74,9 @@ const userSchema = new mongoose.Schema<UserData>({
   },
 });
 
+// Para filtrar los memes de la galería por carrera del autor.
+userSchema.index({ department: 1 });
+
 userSchema.set("toJSON", {
   transform: (
     _,

@@ -83,6 +83,11 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 ### Listar memes (público, no requiere sesión)
 GET http://localhost:3001/api/memes
 
+### Podio de la semana (público, no requiere sesión)
+# Memes publicados desde el lunes (hora de Chile) con más likes. Los empates
+# comparten puesto: { weekStart, weekEnd, podium: [{ position, likes, memes }] }
+GET http://localhost:3001/api/memes/podium
+
 ### Subir un meme (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
 # Cambia ./meme.png por la ruta de una imagen real.
 POST http://localhost:3001/api/memes
@@ -109,6 +114,16 @@ Content-Disposition: form-data; name="content"
 
 Intento de invitado
 ------CaboVerdeBoundary--
+
+### Memes de una carrera (el filtro es por la carrera del AUTOR; público)
+GET http://localhost:3001/api/memes?department=DCC
+
+### Memes de varias carreras, del más antiguo al más nuevo
+# El parámetro se repite (no se separa con comas: algunos nombres las llevan).
+GET http://localhost:3001/api/memes?department=Astronom%C3%ADa&department=F%C3%ADsica&order=oldest
+
+### Carrera inválida -> debe responder 400
+GET http://localhost:3001/api/memes?department=Brujer%C3%ADa
 
 ### Listar los comentarios de un meme (público, no requiere sesión)
 # Cambia <ID_DEL_MEME> por el id de un meme real (campo `id` de GET /api/memes).

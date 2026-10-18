@@ -83,7 +83,7 @@ utils/
 
 | Método | Ruta | Sesión | Descripción |
 |---|---|---|---|
-| GET | `/api/memes` | No | Lista los memes, del más nuevo al más viejo, con sus totales `likes` y `dislikes` |
+| GET | `/api/memes` | No | Lista los memes con sus totales `likes` y `dislikes`. Filtros opcionales: `department` (carrera del **autor**; se puede repetir para combinar varias) y `order` (`newest` por defecto, o `oldest`) |
 | GET | `/api/memes/:id` | No | Un meme (con `likes` y `dislikes`) |
 | POST | `/api/memes` | **Sí** | Sube un meme (`multipart/form-data`: `content` e `image`) |
 | GET | `/api/memes/:id/comments` | No | Lista los comentarios de un meme, del más nuevo al más viejo |
@@ -136,6 +136,7 @@ pages/
   ProfilePage.tsx       Perfil de un usuario y sus publicaciones (ruta /u/:username)
 components/
   Header.tsx            Barra superior compartida por todas las páginas
+  CategoryBar.tsx       Categorías por carrera y botón "Filtrar" (orden) de la galería
   Meme.tsx              Tarjeta de un meme en la galería
   MemeModal.tsx         Vista ampliada de un meme (imagen completa)
   Comments.tsx          Lista de comentarios y formulario para comentar
@@ -160,6 +161,7 @@ types/                  Tipos de TypeScript
 - **Invitados:** ven la galería, los comentarios y un botón "Iniciar sesión". Si tocan el botón `+` para subir un meme, los lleva al login (y aunque lo intentaran por otro lado, el backend responde `401`). En un meme, en lugar del cuadro para escribir ven un enlace "Inicia sesión para comentar", y si tocan like o dislike los lleva al login.
 - **Usuarios con sesión:** ven su nombre, "Cerrar sesión" y el botón `+`, y pueden comentar y dar like/dislike al abrir un meme o desde la tarjeta de la galería (el botón activo se muestra relleno). La sesión se recuerda al recargar la página (se guarda el nombre y el token CSRF en `localStorage`; la sesión real vive en la cookie) y se valida con el backend al abrir el sitio.
 - **Galería:** columnas tipo Pinterest que se adaptan al ancho de la pantalla (columnas de ~18rem: 1 en celular, 4 en un notebook, 6 o más en un monitor ultrawide; el ancho máximo de la página es 2000 px, en `Home.tsx`), cada imagen con su proporción natural. Las imágenes muy largas se recortan a 800 px de alto en la tarjeta (`Meme.tsx`) y se ven completas al abrir el meme.
+- **Categorías y orden:** bajo el header hay un chip por carrera (ASTRO, DCC, DFI, GEOFI, GEO, DIC, DIMIN, DIE, IND, DIM, DIMEC, IQBM; el nombre completo sale al dejar el mouse encima). Cada chip se activa/desactiva al tocarlo y se pueden combinar varias (sin ninguna activa se ven todos los memes); se filtra por la carrera del **autor** del meme. El botón "Filtrar" alterna entre más nuevos primero (flecha hacia abajo) y más antiguos primero (flecha hacia arriba). El filtro y el orden los aplica el backend, y los textos cortos están en `DEPARTMENT_SHORT_NAMES` (`types/departments.ts`). Los usuarios antiguos con carrera "Sin especificar" solo aparecen sin filtro.
 - **Likes y dislikes en cualquier página:** cualquier página que muestre memes (hoy la galería y el perfil) usa el hook `useReactions` y le pasa `reaction` y `onReact` a `<Meme>` y `<MemeModal>`. La página solo decide cómo actualizar los totales en su propio estado; el resto (cargar mis reacciones, alternar, redirigir invitados, sesión expirada) lo hace el hook. Al abrir un meme, la página guarda solo su `id` para que el modal siempre muestre los contadores actualizados.
 - **Formulario de subida:** vista previa de la imagen y validación de formato y tamaño antes de enviar. Si el backend rechaza algo, se muestra el motivo.
 

@@ -26,12 +26,14 @@ function Header({ onLogout }: Props) {
       </h1>
 
       <div className="justify-self-end flex items-center gap-3 text-black">
-        <span
-          title="Ranking (próximamente)"
-          className="hidden sm:block text-5xl leading-none text-amber-400 drop-shadow"
+        <Link
+          to="/podio"
+          title="Podio de la semana"
+          aria-label="Podio de la semana"
+          className="text-4xl sm:text-5xl leading-none text-amber-400 drop-shadow hover:scale-110 transition-transform"
         >
           <EmojiEventsIcon fontSize="inherit" />
-        </span>
+        </Link>
 
         {username ? (
           <>
