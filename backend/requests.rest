@@ -82,6 +82,18 @@ Content-Type: application/json
   "content": "Jajaja excelente meme"
 }
 
+### Responder a un comentario (requiere sesión)
+# Cambia <ID_DEL_COMENTARIO> por el `id` de un comentario de ESE MISMO meme. Si el
+# comentario no existe o es de otro meme -> 404; si el id es inválido -> 400.
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Totalmente de acuerdo",
+  "parent": "<ID_DEL_COMENTARIO>"
+}
+
 ### Comentar como invitado (sin cookie ni CSRF) -> debe responder 401
 POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
 Content-Type: application/json
