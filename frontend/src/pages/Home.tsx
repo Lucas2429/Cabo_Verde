@@ -3,8 +3,7 @@ import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import Header from "../components/Header";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import UploadMemeModal from "../components/UploadMemeModal";
@@ -139,60 +138,7 @@ function Home() {
   return (
     <div className="min-h-screen bg-[#52648a] flex flex-col">
       <div className="flex-1 px-3 sm:px-6 md:px-12 pt-6 md:pt-10 pb-8">
-        <header className="max-w-[2000px] mx-auto bg-[#b4b4b4] rounded-full shadow-md px-5 sm:px-8 py-3 md:py-5 grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <div className="hidden md:block" />
-
-          <h1 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-wide text-black text-center leading-none">
-            HIJOS DE LA (PUNTO).FOO
-          </h1>
-
-          <div className="justify-self-end flex items-center gap-3 text-black">
-            <span
-              title="Ranking (próximamente)"
-              className="hidden sm:block text-5xl leading-none text-amber-400 drop-shadow"
-            >
-              <EmojiEventsIcon fontSize="inherit" />
-            </span>
-
-            {username ? (
-              <>
-                <div className="flex flex-col items-end leading-tight text-sm">
-                  <span className="font-semibold">{username}</span>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="text-xs underline hover:no-underline cursor-pointer"
-                  >
-                    Cerrar sesión
-                  </button>
-                </div>
-                <span
-                  title={username}
-                  className="text-5xl md:text-6xl leading-none"
-                >
-                  <AccountCircleIcon fontSize="inherit" />
-                </span>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="hidden sm:inline text-sm font-medium hover:underline"
-                >
-                  Iniciar sesión
-                </Link>
-                <Link
-                  to="/login"
-                  title="Iniciar sesión"
-                  aria-label="Iniciar sesión"
-                  className="text-5xl md:text-6xl leading-none hover:opacity-80 transition-opacity"
-                >
-                  <AccountCircleIcon fontSize="inherit" />
-                </Link>
-              </>
-            )}
-          </div>
-        </header>
+        <Header onLogout={handleLogout} />
 
         <main className="max-w-[2000px] mx-auto mt-6 md:mt-8 bg-white rounded-[30px] md:rounded-[50px] border-[6px] border-[#b4b4b4] p-4 sm:p-6 md:p-10 min-h-64">
           {loadError && (

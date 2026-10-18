@@ -22,6 +22,10 @@ const memeSchema = new mongoose.Schema<MemeData>(
   }
 );
 
+// Para listar los memes de un perfil (los más recientes primero) sin recorrer
+// toda la colección.
+memeSchema.index({ user: 1, createdAt: -1 });
+
 memeSchema.set("toJSON", {
   transform: (
     _,

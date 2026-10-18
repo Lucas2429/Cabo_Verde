@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { Session } from "../types/auth";
+import type { Department } from "../types/departments";
 
 const baseUrl = "/api";
 const STORAGE_KEY = "cabo-verde-session";
@@ -36,9 +37,10 @@ const login = async (username: string, password: string): Promise<Session> => {
 const register = async (
   username: string,
   email: string,
-  password: string
+  password: string,
+  department: Department
 ): Promise<Session> => {
-  await axios.post(`${baseUrl}/users`, { username, email, password });
+  await axios.post(`${baseUrl}/users`, { username, email, password, department });
   return login(username, password);
 };
 
