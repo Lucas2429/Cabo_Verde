@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import CommentModel from "../models/comment";
 import MemeModel from "../models/memes";
 import User from "../models/user";
@@ -25,8 +26,11 @@ router.get("/", async (request, response) => {
   response.json(comments);
 });
 
-// Solo usuarios con sesión. Espera JSON con el campo:
+// Solo usuarios con sesión. Espera JSON con los campos:
 //   - content: texto del comentario (1 a 300 caracteres)
+//   - parent:  (opcional) id del comentario al que se responde. Debe ser un
+//              comentario de este mismo meme. Si falta o es null, el comentario
+//              es de primer nivel.
 router.post("/", withUser, async (request, response) => {
   const content =
     typeof request.body?.content === "string" ? request.body.content.trim() : "";
@@ -54,11 +58,32 @@ router.post("/", withUser, async (request, response) => {
     return;
   }
 
+  // Si es una respuesta, el comentario padre tiene que existir Y ser de este
+  // mismo meme (si no, se podría "responder" a un comentario de otro meme).
+  const rawParent = request.body?.parent;
+  let parentId: string | null = null;
+  if (rawParent !== undefined && rawParent !== null) {
+    if (typeof rawParent !== "string" || !mongoose.isValidObjectId(rawParent)) {
+      response.status(400).json({ error: "parent must be a valid comment id" });
+      return;
+    }
+    const parentExists = await CommentModel.exists({
+      _id: rawParent,
+      meme: request.params.id,
+    });
+    if (!parentExists) {
+      response.status(404).json({ error: "parent comment not found" });
+      return;
+    }
+    parentId = rawParent;
+  }
+
   const comment = new CommentModel({
     content,
     // El autor sale de la sesión, nunca de lo que mande el cliente.
     author: user.username,
     meme: request.params.id,
+    parent: parentId,
     user: user._id,
   });
   const savedComment = await comment.save();

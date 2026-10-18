@@ -11,13 +11,14 @@ const getByMeme = (memeId: string) => {
     .then((response) => response.data);
 };
 
-// Agrega un comentario al meme. Requiere sesión: la cookie la envía el
-// navegador y el token CSRF va en el header.
-const create = (memeId: string, content: string) => {
+// Agrega un comentario al meme. Si se pasa `parent` (id de otro comentario del
+// mismo meme), el comentario es una respuesta a ese. Requiere sesión: la
+// cookie la envía el navegador y el token CSRF va en el header.
+const create = (memeId: string, content: string, parent: string | null = null) => {
   return axios
     .post<CommentData>(
       `${baseUrl}/${memeId}/comments`,
-      { content },
+      { content, parent },
       { headers: { "X-CSRF-Token": getStoredSession()?.csrf ?? "" } }
     )
     .then((response) => response.data);
