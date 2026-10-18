@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import Header from "../components/Header";
+import CategoryBar from "../components/CategoryBar";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import UploadMemeModal from "../components/UploadMemeModal";
-import type { MemesData } from "../types/memesData";
+import type { Department } from "../types/departments";
+import type { MemeOrder, MemesData } from "../types/memesData";
 import memeService from "../services/meme";
 import { useReactions } from "../hooks/useReactions";
 import { useAuth } from "../context/auth";
@@ -22,15 +24,35 @@ function Home() {
   // muestre los likes y dislikes actualizados de la lista.
   const [selectedMemeId, setSelectedMemeId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+  // Carreras seleccionadas en las categorías (vacío = todas) y orden de la
+  // galería. El backend filtra y ordena; cada cambio vuelve a pedir la lista.
+  const [selectedDepartments, setSelectedDepartments] = useState<Department[]>([]);
+  const [order, setOrder] = useState<MemeOrder>("newest");
+  // Se incrementa para volver a pedir la lista (por ejemplo, tras subir un meme).
+  const [reloadKey, setReloadKey] = useState<number>(0);
 
   const selectedMeme = memes.find((meme) => meme.id === selectedMemeId) ?? null;
 
   useEffect(() => {
+    // Si el filtro cambia antes de que llegue una respuesta, la anterior se
+    // descarta para que no pise a la más reciente.
+    let cancelled = false;
+
     memeService
-      .getAll()
-      .then((data) => setMemes(data))
-      .catch(() => setLoadError(true));
-  }, []);
+      .getAll({ departments: selectedDepartments, order })
+      .then((data) => {
+        if (cancelled) return;
+        setMemes(data);
+        setLoadError(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDepartments, order, reloadKey]);
 
   // El botón de "subir al inicio" aparece solo cuando ya se bajó un poco.
   useEffect(() => {
@@ -64,6 +86,15 @@ function Home() {
     onSessionExpired: handleSessionExpired,
   });
 
+  // Activa o desactiva una carrera (se pueden combinar varias).
+  const handleToggleDepartment = (department: Department) => {
+    setSelectedDepartments((prev) =>
+      prev.includes(department)
+        ? prev.filter((item) => item !== department)
+        : [...prev, department]
+    );
+  };
+
   // Un invitado que toca "+" va al login en vez de ver el formulario.
   const handleAddClick = () => {
     if (canUpload) {
@@ -78,7 +109,18 @@ function Home() {
       <div className="flex-1 px-3 sm:px-6 md:px-12 pt-6 md:pt-10 pb-8">
         <Header onLogout={handleLogout} />
 
-        <main className="max-w-[2000px] mx-auto mt-6 md:mt-8 bg-white rounded-[30px] md:rounded-[50px] border-[6px] border-[#b4b4b4] p-4 sm:p-6 md:p-10 min-h-64">
+        <div className="mt-4 md:mt-5">
+          <CategoryBar
+            selected={selectedDepartments}
+            onToggle={handleToggleDepartment}
+            order={order}
+            onToggleOrder={() =>
+              setOrder((prev) => (prev === "newest" ? "oldest" : "newest"))
+            }
+          />
+        </div>
+
+        <main className="max-w-[2000px] mx-auto mt-4 md:mt-5 bg-white rounded-[30px] md:rounded-[50px] border-[6px] border-[#b4b4b4] p-4 sm:p-6 md:p-10 min-h-64">
           {loadError && (
             <p className="text-center text-gray-500">
               No se pudieron cargar los memes. ¿Está corriendo el backend?
@@ -86,7 +128,9 @@ function Home() {
           )}
           {!loadError && memes.length === 0 && (
             <p className="text-center text-gray-500">
-              Todavía no hay memes por aquí.
+              {selectedDepartments.length > 0
+                ? "No hay memes de las carreras seleccionadas."
+                : "Todavía no hay memes por aquí."}
             </p>
           )}
 
@@ -122,7 +166,7 @@ function Home() {
         {canUpload && modalPostear && (
           <UploadMemeModal
             onClose={() => setModalPostear(false)}
-            onCreated={(meme) => setMemes((prev) => [meme, ...prev])}
+            onCreated={() => setReloadKey((key) => key + 1)}
             onSessionExpired={handleSessionExpired}
           />
         )}
