@@ -1,4 +1,5 @@
 import express from "express";
+import CommentModel from "../models/comment";
 import MemeModel from "../models/memes";
 import ReactionModel, {
   NO_REACTIONS,
@@ -166,6 +167,69 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     await removeImage(image);
     throw error;
   }
+});
+
+// Solo el AUTOR del meme puede editarlo. El usuario sale de la sesión y se
+// compara con el dueño guardado en la BD (nunca con algo que mande el cliente).
+// Espera JSON con el campo:
+//   - content: nueva descripción (1 a 300 caracteres)
+// Responde 404 si el meme no existe y 403 si es de otro usuario.
+router.patch("/:id", withUser, async (request, response) => {
+  const meme = await MemeModel.findById(request.params.id);
+  if (!meme) {
+    response.status(404).json({ error: "meme not found" });
+    return;
+  }
+  if (meme.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only edit your own memes" });
+    return;
+  }
+
+  const content =
+    typeof request.body?.content === "string" ? request.body.content.trim() : "";
+
+  if (!content) {
+    response.status(400).json({ error: "content is required" });
+    return;
+  }
+  if (content.length > MAX_CONTENT_LENGTH) {
+    response.status(400).json({
+      error: `content must be at most ${MAX_CONTENT_LENGTH} characters long`,
+    });
+    return;
+  }
+
+  meme.content = content;
+  const savedMeme = await meme.save();
+
+  // Se devuelve con los totales de likes y dislikes, igual que el resto de los
+  // endpoints que entregan memes.
+  const [memeWithCounts] = await withReactionCounts([savedMeme]);
+  response.json(memeWithCounts);
+});
+
+// Solo el AUTOR del meme puede eliminarlo. Junto con el meme se borran sus
+// comentarios, sus reacciones y el archivo de la imagen, para no dejar datos
+// huérfanos. Responde 404 si no existe y 403 si es de otro usuario.
+router.delete("/:id", withUser, async (request, response) => {
+  const meme = await MemeModel.findById(request.params.id);
+  if (!meme) {
+    response.status(404).json({ error: "meme not found" });
+    return;
+  }
+  if (meme.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only delete your own memes" });
+    return;
+  }
+
+  await meme.deleteOne();
+  await Promise.all([
+    CommentModel.deleteMany({ meme: meme._id }),
+    ReactionModel.deleteMany({ meme: meme._id }),
+    removeImage(meme.image),
+  ]);
+
+  response.status(204).end();
 });
 
 export default router;

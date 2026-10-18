@@ -37,6 +37,9 @@ export interface UserData {
   displayName?: string;
   // Descripción corta del perfil (puede estar vacía).
   description: string;
+  // URL pública de la foto de perfil ("/uploads/<archivo>"). null (o ausente en
+  // los usuarios antiguos) significa que no tiene foto.
+  avatar?: string | null;
   email: string;
   passwordHash: string;
   department: Department;
@@ -54,6 +57,9 @@ const userSchema = new mongoose.Schema<UserData>({
     maxlength: MAX_DESCRIPTION_LENGTH,
     default: "",
   },
+  // Solo se guarda la URL; el archivo vive en backend/uploads (igual que los
+  // memes).
+  avatar: { type: String, default: null },
   email: {
     type: String,
     required: true,

@@ -8,6 +8,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Se restaura la sesión guardada de inmediato (sin parpadeo) y luego se
   // confirma con el backend en segundo plano.
   const [session, setSession] = useState<Session | null>(() => getStoredSession());
+  // Foto de perfil del usuario con sesión. No se guarda en el navegador: se
+  // pide al backend cada vez que se inicia o restaura la sesión.
+  const [avatar, setAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session) {
+      setAvatar(null);
+      return;
+    }
+
+    let cancelled = false;
+    authService.fetchAvatar(session).then((url) => {
+      if (!cancelled) setAvatar(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   useEffect(() => {
     const stored = getStoredSession();
@@ -47,8 +65,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ username: session?.username ?? null, login, register, logout }),
-    [session, login, register, logout]
+    () => ({ username: session?.username ?? null, avatar, setAvatar, login, register, logout }),
+    [session, avatar, login, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

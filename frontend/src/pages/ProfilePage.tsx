@@ -2,23 +2,33 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import LogoutIcon from "@mui/icons-material/Logout";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import Header from "../components/Header";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
-import userService from "../services/user";
+import EditMemeModal from "../components/EditMemeModal";
+import DeleteMemeModal from "../components/DeleteMemeModal";
+import userService, { type UpdatedProfile } from "../services/user";
 import { useReactions } from "../hooks/useReactions";
 import { useAuth } from "../context/auth";
+import type { MemesData } from "../types/memesData";
 import {
   MAX_DESCRIPTION_LENGTH,
   MAX_DISPLAY_NAME_LENGTH,
   type UserProfile,
 } from "../types/profile";
+import { ACCEPT_ATTR, MAX_IMAGE_MB, validateImage } from "../utils/image";
 
 type LoadState =
   | { status: "loading" }
   | { status: "not-found" }
   | { status: "error" }
   | { status: "ok"; profile: UserProfile };
+
+// Cuántos memes trae el perfil por defecto (debe coincidir con
+// LATEST_MEMES_LIMIT en backend/src/controllers/users.ts).
+const LATEST_MEMES_COUNT = 3;
 
 const pillClass =
   "bg-[#b4b4b4] text-black font-semibold rounded-[30px] px-6 py-4 text-center w-full break-words";
@@ -31,6 +41,9 @@ const inputClass =
 
 const describeEditError = (error: unknown): string => {
   if (axios.isAxiosError(error) && error.response) {
+    if (error.response.status === 413) {
+      return `La imagen supera el máximo de ${MAX_IMAGE_MB} MB.`;
+    }
     const message = (error.response.data as { error?: unknown } | undefined)?.error;
     if (typeof message === "string") {
       if (message.includes("displayName must be")) {
@@ -39,6 +52,9 @@ const describeEditError = (error: unknown): string => {
       if (message.includes("description must be")) {
         return `La descripción puede tener hasta ${MAX_DESCRIPTION_LENGTH} caracteres.`;
       }
+      if (message.includes("image")) {
+        return "La imagen no es válida. Usa JPG, PNG, WEBP o GIF.";
+      }
     }
   } else if (axios.isAxiosError(error)) {
     return "No se pudo conectar con el servidor.";
@@ -46,20 +62,95 @@ const describeEditError = (error: unknown): string => {
   return "No se pudo guardar. Intenta nuevamente.";
 };
 
+// Foto de perfil; si el usuario no tiene, se muestra la inicial de su nombre.
+function Avatar({
+  src,
+  name,
+  size,
+}: {
+  src: string | null;
+  name: string;
+  size: "md" | "lg";
+}) {
+  const sizeClass =
+    size === "lg"
+      ? "w-44 h-44 md:w-56 md:h-56 border-[6px]"
+      : "w-24 h-24 border-4";
+  const letterClass = size === "lg" ? "text-8xl md:text-9xl" : "text-5xl";
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={`Foto de perfil de ${name}`}
+        className={`${sizeClass} shrink-0 rounded-full border-black bg-[#5a6c8a] object-cover`}
+      />
+    );
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`${sizeClass} ${letterClass} shrink-0 rounded-full border-black bg-[#5a6c8a] text-white flex items-center justify-center font-display leading-none select-none`}
+    >
+      {name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 interface EditFormProps {
   profile: UserProfile;
-  onSaved: (data: { displayName: string; description: string }) => void;
+  onSaved: (data: UpdatedProfile) => void;
   onCancel: () => void;
   onSessionExpired: () => void;
 }
 
-// Formulario para editar el nombre a mostrar y la descripción (solo en el
-// perfil propio).
+// Formulario para editar la foto, el nombre a mostrar y la descripción (solo en
+// el perfil propio).
 function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditFormProps) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [description, setDescription] = useState(profile.description);
+  // Foto nueva elegida (aún sin subir) y su vista previa local.
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  // true si el usuario pidió quitar la foto que ya tenía.
+  const [removeAvatar, setRemoveAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Vista previa local de la foto elegida; se libera la URL al cambiarla.
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(avatarFile);
+    setAvatarPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [avatarFile]);
+
+  const shownAvatar = avatarPreview ?? (removeAvatar ? null : profile.avatar);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Se limpia el input para poder elegir de nuevo el mismo archivo.
+    event.target.value = "";
+    if (!file) return;
+
+    const problem = validateImage(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    setAvatarFile(file);
+    setRemoveAvatar(false);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    setRemoveAvatar(profile.avatar !== null);
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -71,6 +162,8 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
       const saved = await userService.updateMe({
         displayName: displayName.trim(),
         description: description.trim(),
+        avatar: avatarFile,
+        removeAvatar,
       });
       onSaved(saved);
     } catch (err) {
@@ -85,6 +178,45 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 max-w-xl">
+      <div>
+        <span className="block text-sm font-medium text-gray-700 mb-2">
+          Foto de perfil
+        </span>
+        <div className="flex flex-wrap items-center gap-4">
+          <Avatar src={shownAvatar} name={displayName || profile.username} size="md" />
+          <div className="flex flex-col items-start gap-2">
+            <input
+              id="avatar"
+              type="file"
+              accept={ACCEPT_ATTR}
+              onChange={handleFileChange}
+              disabled={saving}
+              className="sr-only peer"
+            />
+            <label
+              htmlFor="avatar"
+              className="bg-[#b4b4b4] hover:bg-[#868686] peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-disabled:opacity-60 peer-disabled:cursor-not-allowed text-black text-sm font-semibold rounded-full px-5 py-2 transition-colors cursor-pointer shadow-md"
+            >
+              {shownAvatar ? "Cambiar foto" : "Subir foto"}
+            </label>
+            {shownAvatar && (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                disabled={saving}
+                className="text-sm text-red-600 font-semibold hover:underline disabled:opacity-60 cursor-pointer"
+              >
+                Quitar foto
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-500 mt-2">
+          JPG, PNG, WEBP o GIF · máximo {MAX_IMAGE_MB} MB
+          {avatarFile && ` · ${avatarFile.name}`}
+        </p>
+      </div>
+
       <div>
         <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
           Nombre a mostrar
@@ -148,19 +280,38 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
 }
 
 function ProfileView({ username }: { username: string }) {
-  const { username: currentUser, logout } = useAuth();
+  const { username: currentUser, logout, setAvatar: setSessionAvatar } = useAuth();
   const navigate = useNavigate();
 
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [editing, setEditing] = useState(false);
-  // Se guarda solo el id (y no una copia del meme) para que el modal siempre
-  // muestre los likes y dislikes actualizados del perfil.
+  // Se guarda solo el id (y no una copia del meme) para que los modales
+  // siempre muestren los datos actualizados del perfil (likes, descripción...).
   const [selectedMemeId, setSelectedMemeId] = useState<string | null>(null);
+  const [editingMemeId, setEditingMemeId] = useState<string | null>(null);
+  const [deletingMemeId, setDeletingMemeId] = useState<string | null>(null);
 
-  const selectedMeme =
-    state.status === "ok"
-      ? state.profile.latestMemes.find((meme) => meme.id === selectedMemeId) ?? null
-      : null;
+  // Todas las publicaciones del usuario. Es null hasta que se pide "mostrar
+  // todas": el perfil solo trae las últimas 3 y el resto se carga a demanda.
+  const [allMemes, setAllMemes] = useState<MemesData[] | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
+  const [allError, setAllError] = useState(false);
+
+  const latestMemes = state.status === "ok" ? state.profile.latestMemes : [];
+  const isOwnProfile = state.status === "ok" && currentUser === state.profile.username;
+
+  const findMeme = (id: string | null): MemesData | null =>
+    id === null
+      ? null
+      : allMemes?.find((meme) => meme.id === id) ??
+        latestMemes.find((meme) => meme.id === id) ??
+        null;
+
+  const selectedMeme = findMeme(selectedMemeId);
+  // Editar y eliminar solo existen en el perfil propio.
+  const memeToEdit = isOwnProfile ? findMeme(editingMemeId) : null;
+  const memeToDelete = isOwnProfile ? findMeme(deletingMemeId) : null;
 
   // SOLO FRONTEND: los reportes no existen en el backend. Estos valores viven
   // en memoria y se reinician al recargar o cambiar de perfil.
@@ -184,6 +335,20 @@ function ProfileView({ username }: { username: string }) {
     };
   }, [username]);
 
+  // Aplica el mismo cambio a las dos listas de memes (las últimas 3 del perfil
+  // y, si ya se cargó, la lista completa) para que siempre queden iguales.
+  const updateMemes = (change: (memes: MemesData[]) => MemesData[]) => {
+    setState((prev) =>
+      prev.status === "ok"
+        ? {
+            status: "ok",
+            profile: { ...prev.profile, latestMemes: change(prev.profile.latestMemes) },
+          }
+        : prev
+    );
+    setAllMemes((prev) => (prev ? change(prev) : prev));
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate("/");
@@ -191,6 +356,8 @@ function ProfileView({ username }: { username: string }) {
 
   const handleSessionExpired = async () => {
     setSelectedMemeId(null);
+    setEditingMemeId(null);
+    setDeletingMemeId(null);
     await logout();
     navigate("/login");
   };
@@ -199,18 +366,8 @@ function ProfileView({ username }: { username: string }) {
   // actualizar los totales dentro de los memes del perfil.
   const { myReactions, handleReact } = useReactions({
     onCountsChange: (memeId, counts) =>
-      setState((prev) =>
-        prev.status === "ok"
-          ? {
-              status: "ok",
-              profile: {
-                ...prev.profile,
-                latestMemes: prev.profile.latestMemes.map((meme) =>
-                  meme.id === memeId ? { ...meme, ...counts } : meme
-                ),
-              },
-            }
-          : prev
+      updateMemes((memes) =>
+        memes.map((meme) => (meme.id === memeId ? { ...meme, ...counts } : meme))
       ),
     onSessionExpired: handleSessionExpired,
   });
@@ -218,6 +375,55 @@ function ProfileView({ username }: { username: string }) {
   const handleReport = () => {
     setReported(true);
     setReportsReceived((n) => n + 1);
+  };
+
+  // "Mostrar todas": la primera vez trae la lista completa del backend; después
+  // solo alterna entre ver todas y ver las últimas.
+  const handleShowAll = async () => {
+    if (allMemes) {
+      setShowAll(true);
+      return;
+    }
+
+    setLoadingAll(true);
+    setAllError(false);
+    try {
+      setAllMemes(await userService.getMemes(username));
+      setShowAll(true);
+    } catch {
+      setAllError(true);
+    } finally {
+      setLoadingAll(false);
+    }
+  };
+
+  const handleMemeUpdated = (updated: MemesData) => {
+    updateMemes((memes) =>
+      memes.map((meme) => (meme.id === updated.id ? { ...meme, ...updated } : meme))
+    );
+  };
+
+  const handleMemeDeleted = (memeId: string) => {
+    updateMemes((memes) => memes.filter((meme) => meme.id !== memeId));
+    setState((prev) =>
+      prev.status === "ok"
+        ? {
+            status: "ok",
+            profile: {
+              ...prev.profile,
+              memesCount: Math.max(0, prev.profile.memesCount - 1),
+            },
+          }
+        : prev
+    );
+    // Si se borró uno de los últimos 3, el siguiente meme pasa a ocupar su
+    // lugar: se vuelve a pedir el perfil para rellenar la lista y el contador.
+    userService
+      .getProfile(username)
+      .then((profile) => setState({ status: "ok", profile }))
+      .catch(() => {
+        // Si falla, queda la lista ya filtrada en pantalla.
+      });
   };
 
   const renderContent = () => {
@@ -240,18 +446,21 @@ function ProfileView({ username }: { username: string }) {
     }
 
     const { profile } = state;
-    const isOwnProfile = currentUser === profile.username;
+    const visibleMemes = showAll && allMemes ? allMemes : profile.latestMemes;
+    // Hay más publicaciones que las que se ven, o ya se están viendo todas (y
+    // son más de las que mostraría el perfil por defecto).
+    const canToggleAll = showAll
+      ? visibleMemes.length > LATEST_MEMES_COUNT
+      : profile.memesCount > profile.latestMemes.length;
 
     return (
       <div className="flex flex-col md:flex-row gap-8 md:gap-12">
         {/* Columna izquierda: avatar y datos del usuario. */}
         <aside className="md:w-80 shrink-0 flex flex-col items-center gap-4">
-          <div
-            aria-hidden="true"
-            className="w-44 h-44 md:w-56 md:h-56 rounded-full border-[6px] border-black bg-[#5a6c8a] text-white flex items-center justify-center font-display text-8xl md:text-9xl leading-none select-none"
-          >
-            {profile.displayName.charAt(0).toUpperCase()}
-          </div>
+          <Avatar src={profile.avatar} name={profile.displayName} size="lg" />
+
+          {/* Departamento del usuario ("Sin especificar" en las cuentas antiguas). */}
+          <div className={pillClass}>Departamento: {profile.department}</div>
 
           <div className={profile.description ? pillClass : `${pillClass} text-gray-600`}>
             {profile.description || "Sin descripción"}
@@ -260,7 +469,7 @@ function ProfileView({ username }: { username: string }) {
           <div className={pillClass}>Publicaciones: {profile.memesCount}</div>
         </aside>
 
-        {/* Columna derecha: nombre, acciones y últimas publicaciones. */}
+        {/* Columna derecha: nombre, acciones y publicaciones. */}
         <section className="flex-1 min-w-0">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
@@ -271,6 +480,9 @@ function ProfileView({ username }: { username: string }) {
                   onSessionExpired={handleSessionExpired}
                   onSaved={(saved) => {
                     setState({ status: "ok", profile: { ...profile, ...saved } });
+                    // El formulario solo existe en el perfil propio: se actualiza
+                    // también la foto del banner.
+                    setSessionAvatar(saved.avatar);
                     setEditing(false);
                   }}
                 />
@@ -321,24 +533,60 @@ function ProfileView({ username }: { username: string }) {
           </div>
 
           <div className="mt-8">
-            <h3 className="inline-block bg-[#b4b4b4] text-black font-semibold rounded-full px-8 py-4 mb-6">
-              Últimas publicaciones
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <h3 className="inline-block bg-[#b4b4b4] text-black font-semibold rounded-full px-8 py-4">
+                {showAll ? "Todas las publicaciones" : "Últimas publicaciones"}
+              </h3>
 
-            {profile.latestMemes.length === 0 ? (
+              {canToggleAll && (
+                <button
+                  type="button"
+                  onClick={showAll ? () => setShowAll(false) : handleShowAll}
+                  disabled={loadingAll}
+                  aria-expanded={showAll}
+                  className={`${grayButtonClass} flex items-center gap-1.5`}
+                >
+                  {showAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  {showAll
+                    ? "Mostrar menos"
+                    : loadingAll
+                      ? "Cargando..."
+                      : `Mostrar todas (${profile.memesCount})`}
+                </button>
+              )}
+            </div>
+
+            {allError && (
+              <p role="alert" className="mb-4 text-sm text-red-600">
+                No se pudieron cargar todas las publicaciones. Intenta nuevamente.
+              </p>
+            )}
+
+            {visibleMemes.length === 0 ? (
               <p className="text-gray-500">
                 {isOwnProfile
                   ? "Todavía no has publicado nada."
                   : "Este usuario todavía no ha publicado nada."}
               </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-start">
-                {profile.latestMemes.map((meme) => (
-                  <div key={meme.id} onClick={() => setSelectedMemeId(meme.id)}>
+              // Mismo formato que la galería del Home: columnas de ~16rem que
+              // se adaptan al ancho disponible y apilan los memes de cualquier
+              // tamaño sin dejar huecos entre filas ni recortarlos.
+              <div className="columns-2xs gap-5">
+                {visibleMemes.map((meme) => (
+                  <div
+                    key={meme.id}
+                    className="mb-5 break-inside-avoid"
+                    onClick={() => setSelectedMemeId(meme.id)}
+                  >
                     <Meme
                       meme={meme}
                       reaction={myReactions[meme.id] ?? null}
                       onReact={(type) => handleReact(meme.id, type)}
+                      // Solo en el perfil propio aparecen ⋮ (editar) y el
+                      // basurero (eliminar).
+                      onEdit={isOwnProfile ? () => setEditingMemeId(meme.id) : undefined}
+                      onDelete={isOwnProfile ? () => setDeletingMemeId(meme.id) : undefined}
                     />
                   </div>
                 ))}
@@ -368,6 +616,27 @@ function ProfileView({ username }: { username: string }) {
           onClose={() => setSelectedMemeId(null)}
           onSessionExpired={handleSessionExpired}
         />
+
+        {memeToEdit && (
+          <EditMemeModal
+            // El key reinicia el formulario si se edita otro meme.
+            key={memeToEdit.id}
+            meme={memeToEdit}
+            onClose={() => setEditingMemeId(null)}
+            onUpdated={handleMemeUpdated}
+            onSessionExpired={handleSessionExpired}
+          />
+        )}
+
+        {memeToDelete && (
+          <DeleteMemeModal
+            key={memeToDelete.id}
+            meme={memeToDelete}
+            onClose={() => setDeletingMemeId(null)}
+            onDeleted={handleMemeDeleted}
+            onSessionExpired={handleSessionExpired}
+          />
+        )}
       </div>
 
       <footer className="px-4 pb-3 text-xs sm:text-sm font-bold text-white">

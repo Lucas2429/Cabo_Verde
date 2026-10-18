@@ -1,6 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
-import CommentModel from "../models/comment";
+import CommentModel, { withAuthorAvatars } from "../models/comment";
 import MemeModel from "../models/memes";
 import User from "../models/user";
 import { withUser } from "../utils/middleware";
@@ -23,7 +23,7 @@ router.get("/", async (request, response) => {
   const comments = await CommentModel.find({ meme: request.params.id }).sort({
     createdAt: -1,
   });
-  response.json(comments);
+  response.json(await withAuthorAvatars(comments));
 });
 
 // Solo usuarios con sesión. Espera JSON con los campos:
@@ -87,7 +87,8 @@ router.post("/", withUser, async (request, response) => {
     user: user._id,
   });
   const savedComment = await comment.save();
-  response.status(201).json(savedComment);
+  const [commentWithAvatar] = await withAuthorAvatars([savedComment]);
+  response.status(201).json(commentWithAvatar);
 });
 
 export default router;

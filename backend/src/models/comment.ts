@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import User from "./user";
 
 export interface CommentData {
   content: string;
@@ -62,5 +63,26 @@ commentSchema.set("toJSON", {
 });
 
 const CommentModel = mongoose.model<CommentData>("Comment", commentSchema);
+
+// Serializa comentarios (documentos de Mongoose) agregando `authorAvatar`, la
+// foto de perfil actual de su autor (null si no tiene). Se busca en la tabla de
+// usuarios en vez de guardarla en cada comentario, así si el autor cambia su
+// foto, todos sus comentarios la muestran. TODO endpoint que devuelva
+// comentarios debe pasar por aquí, para que el frontend reciba siempre la misma
+// forma.
+export const withAuthorAvatars = async <
+  T extends { user: mongoose.Types.ObjectId; toJSON(): object }
+>(
+  comments: T[]
+) => {
+  const userIds = [...new Set(comments.map((comment) => comment.user.toString()))];
+  const users = await User.find({ _id: { $in: userIds } }, "avatar");
+  const avatars = new Map(users.map((user) => [user._id.toString(), user.avatar ?? null]));
+
+  return comments.map((comment) => ({
+    ...comment.toJSON(),
+    authorAvatar: avatars.get(comment.user.toString()) ?? null,
+  }));
+};
 
 export default CommentModel;

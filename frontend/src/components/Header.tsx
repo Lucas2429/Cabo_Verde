@@ -11,7 +11,7 @@ interface Props {
 
 // Barra superior compartida por todas las páginas.
 function Header({ onLogout }: Props) {
-  const { username, logout } = useAuth();
+  const { username, avatar, logout } = useAuth();
   const handleLogout = onLogout ?? logout;
   const profilePath = username ? `/u/${encodeURIComponent(username)}` : "/login";
 
@@ -59,7 +59,15 @@ function Header({ onLogout }: Props) {
               aria-label="Ver mi perfil"
               className="text-5xl md:text-6xl leading-none hover:opacity-80 transition-opacity"
             >
-              <AccountCircleIcon fontSize="inherit" />
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt=""
+                  className="w-12 h-12 md:w-15 md:h-15 rounded-full border-2 border-black object-cover bg-[#5a6c8a]"
+                />
+              ) : (
+                <AccountCircleIcon fontSize="inherit" />
+              )}
             </Link>
           </>
         ) : (

@@ -71,4 +71,19 @@ const validate = async (session: Session): Promise<boolean> => {
   }
 };
 
-export default { login, register, logout, validate };
+// Foto de perfil del usuario con sesión (/api/login/me devuelve el usuario
+// completo). Devuelve null si no tiene foto o si la consulta falla: sin foto
+// solo se muestra el ícono por defecto.
+const fetchAvatar = async (session: Session): Promise<string | null> => {
+  try {
+    const { data } = await axios.get<{ avatar?: string | null }>(
+      `${baseUrl}/login/me`,
+      { headers: { "X-CSRF-Token": session.csrf } }
+    );
+    return data.avatar ?? null;
+  } catch {
+    return null;
+  }
+};
+
+export default { login, register, logout, validate, fetchAvatar };

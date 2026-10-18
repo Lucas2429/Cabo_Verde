@@ -25,6 +25,47 @@ Content-Type: application/json
   "description": "Instituto Profesional del Colo-Colo"
 }
 
+### Todos los memes de un usuario (público; el perfil solo trae los últimos 3)
+GET http://localhost:3001/api/users/root/memes
+
+### Cambiar mi foto de perfil (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
+# Los campos de texto son opcionales; el archivo va en el campo `image`.
+# Cambia ./avatar.png por la ruta de una imagen real.
+PATCH http://localhost:3001/api/users/me
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="avatar.png"
+Content-Type: image/png
+
+< ./avatar.png
+------CaboVerdeBoundary--
+
+### Quitar mi foto de perfil (requiere sesión)
+PATCH http://localhost:3001/api/users/me
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "removeAvatar": true
+}
+
+### Editar la descripción de un meme PROPIO (requiere sesión)
+# Si el meme es de otro usuario -> 403; si no existe -> 404.
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Descripción corregida"
+}
+
+### Eliminar un meme PROPIO (requiere sesión; borra también sus comentarios, reacciones e imagen)
+# Si el meme es de otro usuario -> 403; si no existe -> 404. Éxito -> 204.
+DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
 ### Login (REST Client guarda la cookie `token` para las peticiones siguientes)
 # @name login
 POST http://localhost:3001/api/login
