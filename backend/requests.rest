@@ -42,6 +42,11 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 ### Listar memes (público, no requiere sesión)
 GET http://localhost:3001/api/memes
 
+### Podio de la semana (público, no requiere sesión)
+# Memes publicados desde el lunes (hora de Chile) con más likes. Los empates
+# comparten puesto: { weekStart, weekEnd, podium: [{ position, likes, memes }] }
+GET http://localhost:3001/api/memes/podium
+
 ### Subir un meme (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
 # Cambia ./meme.png por la ruta de una imagen real.
 POST http://localhost:3001/api/memes
