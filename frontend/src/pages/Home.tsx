@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import Header from "../components/Header";
@@ -7,7 +8,9 @@ import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import UploadMemeModal from "../components/UploadMemeModal";
 import type { MemesData } from "../types/memesData";
+import type { ReactionType } from "../types/reaction";
 import memeService from "../services/meme";
+import reactionService from "../services/reaction";
 import { useAuth } from "../context/auth";
 
 function Home() {
@@ -17,8 +20,16 @@ function Home() {
   const [memes, setMemes] = useState<MemesData[]>([]);
   const [loadError, setLoadError] = useState<boolean>(false);
   const [modalPostear, setModalPostear] = useState<boolean>(false);
-  const [selectedMeme, setSelectedMeme] = useState<MemesData | null>(null);
+  // Se guarda solo el id (y no una copia del meme) para que el modal siempre
+  // muestre los likes y dislikes actualizados de la lista.
+  const [selectedMemeId, setSelectedMemeId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+  // Reacción del usuario con sesión a cada meme: { idDelMeme: "like" | "dislike" }.
+  const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>({});
+  // Memes con una reacción en curso: evita doble clic mientras se espera al backend.
+  const reactingRef = useRef<Set<string>>(new Set());
+
+  const selectedMeme = memes.find((meme) => meme.id === selectedMemeId) ?? null;
 
   useEffect(() => {
     memeService
@@ -34,6 +45,29 @@ function Home() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Al iniciar (o restaurar) la sesión se cargan las reacciones del usuario; al
+  // cerrarla se limpian.
+  useEffect(() => {
+    if (username === null) {
+      setMyReactions({});
+      return;
+    }
+
+    let cancelled = false;
+    reactionService
+      .getMine()
+      .then((data) => {
+        if (!cancelled) setMyReactions(data);
+      })
+      .catch(() => {
+        // Sin las reacciones propias solo se pierde el resaltado de los botones;
+        // si la sesión expiró, AuthProvider ya se encarga de cerrarla.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [username]);
+
   // Solo los usuarios con sesión pueden subir memes; los invitados solo ven.
   const canUpload = username !== null;
 
@@ -44,8 +78,52 @@ function Home() {
 
   const handleSessionExpired = async () => {
     setModalPostear(false);
+    setSelectedMemeId(null);
     await logout();
     navigate("/login");
+  };
+
+  // Like / dislike. Tocar la misma reacción otra vez la quita; tocar la otra la
+  // reemplaza. Un invitado va al login (y el backend igual responde 401).
+  const handleReact = async (memeId: string, type: ReactionType) => {
+    if (!canUpload) {
+      navigate("/login");
+      return;
+    }
+    if (reactingRef.current.has(memeId)) return;
+    reactingRef.current.add(memeId);
+
+    try {
+      const result =
+        myReactions[memeId] === type
+          ? await reactionService.remove(memeId)
+          : await reactionService.set(memeId, type);
+
+      // Se usan los totales que devuelve el backend, no un cálculo local.
+      setMemes((prev) =>
+        prev.map((meme) =>
+          meme.id === memeId
+            ? { ...meme, likes: result.likes, dislikes: result.dislikes }
+            : meme
+        )
+      );
+      setMyReactions((prev) => {
+        const next = { ...prev };
+        if (result.type) {
+          next[memeId] = result.type;
+        } else {
+          delete next[memeId];
+        }
+        return next;
+      });
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        await handleSessionExpired();
+      }
+      // Otros errores (red, etc.): no cambia nada y se puede reintentar.
+    } finally {
+      reactingRef.current.delete(memeId);
+    }
   };
 
   // Un invitado que toca "+" va al login en vez de ver el formulario.
@@ -81,15 +159,27 @@ function Home() {
               <div
                 key={meme.id}
                 className="mb-5 break-inside-avoid"
-                onClick={() => setSelectedMeme(meme)}
+                onClick={() => setSelectedMemeId(meme.id)}
               >
-                <Meme meme={meme} />
+                <Meme
+                  meme={meme}
+                  reaction={myReactions[meme.id] ?? null}
+                  onReact={(type) => handleReact(meme.id, type)}
+                />
               </div>
             ))}
           </div>
         </main>
 
-        <MemeModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} />
+        <MemeModal
+          meme={selectedMeme}
+          reaction={selectedMeme ? myReactions[selectedMeme.id] ?? null : null}
+          onReact={(type) => {
+            if (selectedMeme) handleReact(selectedMeme.id, type);
+          }}
+          onClose={() => setSelectedMemeId(null)}
+          onSessionExpired={handleSessionExpired}
+        />
 
         {canUpload && modalPostear && (
           <UploadMemeModal

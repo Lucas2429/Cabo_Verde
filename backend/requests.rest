@@ -69,6 +69,53 @@ Content-Disposition: form-data; name="content"
 Intento de invitado
 ------CaboVerdeBoundary--
 
+### Listar los comentarios de un meme (público, no requiere sesión)
+# Cambia <ID_DEL_MEME> por el id de un meme real (campo `id` de GET /api/memes).
+GET http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+
+### Comentar un meme (requiere sesión; 1 a 300 caracteres)
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Jajaja excelente meme"
+}
+
+### Comentar como invitado (sin cookie ni CSRF) -> debe responder 401
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments
+Content-Type: application/json
+
+{
+  "content": "Intento de invitado"
+}
+
+### Ver mis reacciones (requiere sesión): { "<idDelMeme>": "like" | "dislike" }
+GET http://localhost:3001/api/memes/reactions/mine
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Dar like a un meme (requiere sesión; type: "like" o "dislike")
+# Si ya tenías una reacción, se reemplaza. Responde la reacción y los totales.
+PUT http://localhost:3001/api/memes/<ID_DEL_MEME>/reaction
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "type": "like"
+}
+
+### Quitar mi reacción a un meme (requiere sesión)
+DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>/reaction
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Reaccionar como invitado (sin cookie ni CSRF) -> debe responder 401
+PUT http://localhost:3001/api/memes/<ID_DEL_MEME>/reaction
+Content-Type: application/json
+
+{
+  "type": "like"
+}
+
 ### Cerrar sesión
 POST http://localhost:3001/api/login/logout
 
