@@ -7,9 +7,12 @@ import ReactionModel, {
 } from "../models/reaction";
 import User, { DEPARTMENTS } from "../models/user";
 import { withUser } from "../utils/middleware";
+import { buildPodium } from "../utils/podium";
 import { removeImage, saveImage, uploadImage } from "../utils/upload";
+import { getCurrentWeek } from "../utils/week";
 import commentsRouter from "./comments";
 import reactionsRouter from "./reactions";
+import { getReactionCounts } from "../models/reaction";
 
 const MAX_CONTENT_LENGTH = 300;
 
@@ -83,6 +86,26 @@ router.get("/reactions/mine", withUser, async (request, response) => {
     mine[reaction.meme.toString()] = reaction.type;
   }
   response.json(mine);
+});
+
+// Público: podio de la semana en curso (de lunes a domingo, hora de Chile). Son
+// los memes publicados esta semana con más likes; los empates comparten puesto.
+// Responde { weekStart, weekEnd, podium: [{ position, likes, memes: [...] }] }.
+// Va antes de "/:id" para que "podium" no se confunda con un id.
+router.get("/podium", async (_request, response) => {
+  const { start, end } = getCurrentWeek();
+
+  const weekMemes = await MemeModel.find({
+    createdAt: { $gte: start, $lt: end },
+  });
+  const counts = await getReactionCounts(weekMemes.map((meme) => meme._id));
+
+  const ranked = weekMemes.map((meme) => ({
+    ...meme.toJSON(),
+    ...(counts.get(meme.id) ?? NO_REACTIONS),
+  }));
+
+  response.json({ weekStart: start, weekEnd: end, podium: buildPodium(ranked) });
 });
 
 router.get("/:id", async (request, response) => {

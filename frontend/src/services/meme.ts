@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { WeeklyPodium } from "../types/podium";
 import type { Department } from "../types/departments";
 import type { MemeOrder, MemesData } from "../types/memesData";
 import { getStoredSession } from "./auth";
@@ -24,6 +25,13 @@ const getAll = ({ departments = [], order = "newest" }: GetAllOptions = {}) => {
     .then((response) => response.data);
 };
 
+// Podio de la semana en curso. Es público.
+const getPodium = () => {
+  return axios
+    .get<WeeklyPodium>(`${baseUrl}/podium`)
+    .then((response) => response.data);
+};
+
 // Sube un meme nuevo. Va como multipart/form-data porque lleva un archivo;
 // axios agrega solo el header Content-Type con su boundary.
 const create = (content: string, image: File) => {
@@ -40,5 +48,6 @@ const create = (content: string, image: File) => {
 
 export default {
   getAll,
+  getPodium,
   create,
 };
