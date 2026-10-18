@@ -5,7 +5,7 @@ import ReactionModel, {
   withReactionCounts,
   type ReactionType,
 } from "../models/reaction";
-import User from "../models/user";
+import User, { DEPARTMENTS } from "../models/user";
 import { withUser } from "../utils/middleware";
 import { buildPodium } from "../utils/podium";
 import { removeImage, saveImage, uploadImage } from "../utils/upload";
@@ -16,6 +16,9 @@ import { getReactionCounts } from "../models/reaction";
 
 const MAX_CONTENT_LENGTH = 300;
 
+const isDepartment = (value: unknown): value is (typeof DEPARTMENTS)[number] =>
+  typeof value === "string" && (DEPARTMENTS as readonly string[]).includes(value);
+
 const router = express.Router();
 
 // Comentarios de un meme: /api/memes/:id/comments
@@ -25,9 +28,50 @@ router.use("/:id/comments", commentsRouter);
 router.use("/:id/reaction", reactionsRouter);
 
 // Público: cualquiera (incluidos invitados) puede ver los memes, con sus
-// totales de likes y dislikes.
-router.get("/", async (_request, response) => {
-  const memes = await MemeModel.find({}).sort({ createdAt: -1 });
+// totales de likes y dislikes. Parámetros opcionales (query string):
+//   - department: carrera del AUTOR del meme. Se puede repetir para combinar
+//                 varias (?department=DCC&department=Física); no se separan con
+//                 coma porque algunos nombres la llevan ("Química, Biotecnología
+//                 y Materiales"). Sin ninguno, se devuelven todos los memes.
+//   - order:      "newest" (por defecto, del más nuevo al más antiguo) u "oldest".
+router.get("/", async (request, response) => {
+  const rawDepartments = request.query.department;
+  const departments =
+    rawDepartments === undefined
+      ? []
+      : Array.isArray(rawDepartments)
+        ? rawDepartments
+        : [rawDepartments];
+  if (!departments.every(isDepartment)) {
+    response.status(400).json({
+      error: `department must be one of: ${DEPARTMENTS.join(", ")}`,
+    });
+    return;
+  }
+
+  const order = request.query.order ?? "newest";
+  if (order !== "newest" && order !== "oldest") {
+    response.status(400).json({ error: "order must be newest or oldest" });
+    return;
+  }
+  const direction = order === "oldest" ? 1 : -1;
+
+  // Se buscan los usuarios de esas carreras y luego sus memes (usa el índice
+  // user + createdAt de memes.ts).
+  const filter =
+    departments.length > 0
+      ? {
+          user: {
+            $in: await User.distinct("_id", { department: { $in: departments } }),
+          },
+        }
+      : {};
+
+  // _id como desempate: si dos memes tienen la misma fecha, el orden es estable.
+  const memes = await MemeModel.find(filter).sort({
+    createdAt: direction,
+    _id: direction,
+  });
   response.json(await withReactionCounts(memes));
 });
 
