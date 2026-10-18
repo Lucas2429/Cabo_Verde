@@ -2,6 +2,8 @@ export type CommentData = {
   id: string;
   content: string;
   author: string;
+  // Foto de perfil del autor (URL), o null si no tiene.
+  authorAvatar: string | null;
   // Id del comentario al que responde. null si es de primer nivel.
   parent: string | null;
   createdAt: string;
