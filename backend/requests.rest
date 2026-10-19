@@ -25,6 +25,47 @@ Content-Type: application/json
   "description": "Instituto Profesional del Colo-Colo"
 }
 
+### Todos los memes de un usuario (público; el perfil solo trae los últimos 3)
+GET http://localhost:3001/api/users/root/memes
+
+### Cambiar mi foto de perfil (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
+# Los campos de texto son opcionales; el archivo va en el campo `image`.
+# Cambia ./avatar.png por la ruta de una imagen real.
+PATCH http://localhost:3001/api/users/me
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="avatar.png"
+Content-Type: image/png
+
+< ./avatar.png
+------CaboVerdeBoundary--
+
+### Quitar mi foto de perfil (requiere sesión)
+PATCH http://localhost:3001/api/users/me
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "removeAvatar": true
+}
+
+### Editar la descripción de un meme PROPIO (requiere sesión)
+# Si el meme es de otro usuario -> 403; si no existe -> 404.
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Descripción corregida"
+}
+
+### Eliminar un meme PROPIO (requiere sesión; borra también sus comentarios, reacciones e imagen)
+# Si el meme es de otro usuario -> 403; si no existe -> 404. Éxito -> 204.
+DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
 ### Login (REST Client guarda la cookie `token` para las peticiones siguientes)
 # @name login
 POST http://localhost:3001/api/login
@@ -42,8 +83,10 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 ### Listar memes (público, no requiere sesión)
 GET http://localhost:3001/api/memes
 
-### Probar GET con ID inválido
-GET http://localhost:3001/api/memes/id-invalido/comments
+### Podio de la semana (público, no requiere sesión)
+# Memes publicados desde el lunes (hora de Chile) con más likes. Los empates
+# comparten puesto: { weekStart, weekEnd, podium: [{ position, likes, memes }] }
+GET http://localhost:3001/api/memes/podium
 
 ### Subir un meme (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
 # Cambia ./meme.png por la ruta de una imagen real.
@@ -80,6 +123,15 @@ Content-Type: application/json
 {
   "content": "Comentario de prueba"
 }
+### Memes de una carrera (el filtro es por la carrera del AUTOR; público)
+GET http://localhost:3001/api/memes?department=DCC
+
+### Memes de varias carreras, del más antiguo al más nuevo
+# El parámetro se repite (no se separa con comas: algunos nombres las llevan).
+GET http://localhost:3001/api/memes?department=Astronom%C3%ADa&department=F%C3%ADsica&order=oldest
+
+### Carrera inválida -> debe responder 400
+GET http://localhost:3001/api/memes?department=Brujer%C3%ADa
 
 ### Listar los comentarios de un meme (público, no requiere sesión)
 # Cambia <ID_DEL_MEME> por el id de un meme real (campo `id` de GET /api/memes).

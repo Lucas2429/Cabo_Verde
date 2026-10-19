@@ -9,6 +9,7 @@ import User, {
   MAX_DISPLAY_NAME_LENGTH,
 } from "../models/user";
 import { withUser } from "../utils/middleware";
+import { removeImage, saveImage, uploadImage } from "../utils/upload";
 
 // Cuántos memes recientes se muestran en el perfil.
 const LATEST_MEMES_LIMIT = 3;
@@ -96,10 +97,24 @@ router.get("/", async (request, response) => {
 // Edita el perfil del usuario con sesión (el id sale del token, nunca del
 // cliente, así que nadie puede editar el perfil de otro). Va ANTES de las rutas
 // con parámetro para que "me" no se confunda con un username.
-router.patch("/me", withUser, async (request, response) => {
+//
+// Acepta dos formatos:
+//   - JSON: { displayName?, description?, removeAvatar? }
+//   - multipart/form-data: los mismos campos de texto más, opcionalmente, el
+//     archivo `image` (JPG/PNG/WEBP/GIF de hasta 2 MB) con la nueva foto.
+// Con JSON, multer no hace nada y sigue de largo.
+router.patch("/me", withUser, uploadImage, async (request, response) => {
   const { displayName, description } = request.body ?? {};
+  // Por JSON llega como booleano y por multipart como texto.
+  const removeAvatar =
+    request.body?.removeAvatar === true || request.body?.removeAvatar === "true";
 
-  if (displayName === undefined && description === undefined) {
+  if (
+    displayName === undefined &&
+    description === undefined &&
+    !request.file &&
+    !removeAvatar
+  ) {
     response.status(400).json({ error: "nothing to update" });
     return;
   }
@@ -123,14 +138,50 @@ router.patch("/me", withUser, async (request, response) => {
     return;
   }
 
-  if (displayName !== undefined) user.displayName = displayName.trim();
-  if (description !== undefined) user.description = description.trim();
-  await user.save();
+  const previousAvatar = user.avatar ?? null;
+  // saveImage valida el contenido real del archivo (no solo el mimetype) y lo
+  // guarda con un nombre aleatorio.
+  const newAvatar = request.file ? await saveImage(request.file.buffer) : null;
+
+  try {
+    if (displayName !== undefined) user.displayName = displayName.trim();
+    if (description !== undefined) user.description = description.trim();
+    if (newAvatar) {
+      user.avatar = newAvatar;
+    } else if (removeAvatar) {
+      user.avatar = null;
+    }
+    await user.save();
+  } catch (error) {
+    // Si falla el guardado, no dejar la imagen nueva huérfana en disco.
+    if (newAvatar) await removeImage(newAvatar);
+    throw error;
+  }
+
+  // Ya guardado el cambio, se borra la foto anterior para no acumular archivos.
+  if (previousAvatar && previousAvatar !== (user.avatar ?? null)) {
+    await removeImage(previousAvatar);
+  }
 
   response.json({
     displayName: user.displayName || user.username,
     description: user.description,
+    avatar: user.avatar ?? null,
   });
+});
+
+// Todos los memes de un usuario (los más nuevos primero), con sus likes y
+// dislikes. Es público, igual que el perfil. El perfil solo trae los últimos 3;
+// este endpoint se usa cuando se pide "mostrar todas".
+router.get("/:username/memes", async (request, response) => {
+  const user = await User.findOne({ username: request.params.username });
+  if (!user) {
+    response.status(404).json({ error: "user not found" });
+    return;
+  }
+
+  const memes = await MemeModel.find({ user: user._id }).sort({ createdAt: -1 });
+  response.json(await withReactionCounts(memes));
 });
 
 // Perfil público (también para invitados): datos del usuario, cantidad de
@@ -154,6 +205,7 @@ router.get("/:username", async (request, response) => {
     username: user.username,
     displayName: user.displayName || user.username,
     description: user.description ?? "",
+    avatar: user.avatar ?? null,
     department: user.department,
     memesCount,
     latestMemes: await withReactionCounts(latestMemes),

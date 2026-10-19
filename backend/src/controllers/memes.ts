@@ -1,17 +1,24 @@
 import express from "express";
+import CommentModel from "../models/comment";
 import MemeModel from "../models/memes";
 import ReactionModel, {
   NO_REACTIONS,
   withReactionCounts,
   type ReactionType,
 } from "../models/reaction";
-import User from "../models/user";
+import User, { DEPARTMENTS } from "../models/user";
 import { withUser } from "../utils/middleware";
+import { buildPodium } from "../utils/podium";
 import { removeImage, saveImage, uploadImage } from "../utils/upload";
+import { getCurrentWeek } from "../utils/week";
 import commentsRouter from "./comments";
 import reactionsRouter from "./reactions";
+import { getReactionCounts } from "../models/reaction";
 
 const MAX_CONTENT_LENGTH = 300;
+
+const isDepartment = (value: unknown): value is (typeof DEPARTMENTS)[number] =>
+  typeof value === "string" && (DEPARTMENTS as readonly string[]).includes(value);
 
 const router = express.Router();
 
@@ -22,9 +29,50 @@ router.use("/:id/comments", commentsRouter);
 router.use("/:id/reaction", reactionsRouter);
 
 // Público: cualquiera (incluidos invitados) puede ver los memes, con sus
-// totales de likes y dislikes.
-router.get("/", async (_request, response) => {
-  const memes = await MemeModel.find({}).sort({ createdAt: -1 });
+// totales de likes y dislikes. Parámetros opcionales (query string):
+//   - department: carrera del AUTOR del meme. Se puede repetir para combinar
+//                 varias (?department=DCC&department=Física); no se separan con
+//                 coma porque algunos nombres la llevan ("Química, Biotecnología
+//                 y Materiales"). Sin ninguno, se devuelven todos los memes.
+//   - order:      "newest" (por defecto, del más nuevo al más antiguo) u "oldest".
+router.get("/", async (request, response) => {
+  const rawDepartments = request.query.department;
+  const departments =
+    rawDepartments === undefined
+      ? []
+      : Array.isArray(rawDepartments)
+        ? rawDepartments
+        : [rawDepartments];
+  if (!departments.every(isDepartment)) {
+    response.status(400).json({
+      error: `department must be one of: ${DEPARTMENTS.join(", ")}`,
+    });
+    return;
+  }
+
+  const order = request.query.order ?? "newest";
+  if (order !== "newest" && order !== "oldest") {
+    response.status(400).json({ error: "order must be newest or oldest" });
+    return;
+  }
+  const direction = order === "oldest" ? 1 : -1;
+
+  // Se buscan los usuarios de esas carreras y luego sus memes (usa el índice
+  // user + createdAt de memes.ts).
+  const filter =
+    departments.length > 0
+      ? {
+          user: {
+            $in: await User.distinct("_id", { department: { $in: departments } }),
+          },
+        }
+      : {};
+
+  // _id como desempate: si dos memes tienen la misma fecha, el orden es estable.
+  const memes = await MemeModel.find(filter).sort({
+    createdAt: direction,
+    _id: direction,
+  });
   response.json(await withReactionCounts(memes));
 });
 
@@ -39,6 +87,26 @@ router.get("/reactions/mine", withUser, async (request, response) => {
     mine[reaction.meme.toString()] = reaction.type;
   }
   response.json(mine);
+});
+
+// Público: podio de la semana en curso (de lunes a domingo, hora de Chile). Son
+// los memes publicados esta semana con más likes; los empates comparten puesto.
+// Responde { weekStart, weekEnd, podium: [{ position, likes, memes: [...] }] }.
+// Va antes de "/:id" para que "podium" no se confunda con un id.
+router.get("/podium", async (_request, response) => {
+  const { start, end } = getCurrentWeek();
+
+  const weekMemes = await MemeModel.find({
+    createdAt: { $gte: start, $lt: end },
+  });
+  const counts = await getReactionCounts(weekMemes.map((meme) => meme._id));
+
+  const ranked = weekMemes.map((meme) => ({
+    ...meme.toJSON(),
+    ...(counts.get(meme.id) ?? NO_REACTIONS),
+  }));
+
+  response.json({ weekStart: start, weekEnd: end, podium: buildPodium(ranked) });
 });
 
 router.get("/:id", async (request, response) => {
@@ -99,6 +167,69 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     await removeImage(image);
     throw error;
   }
+});
+
+// Solo el AUTOR del meme puede editarlo. El usuario sale de la sesión y se
+// compara con el dueño guardado en la BD (nunca con algo que mande el cliente).
+// Espera JSON con el campo:
+//   - content: nueva descripción (1 a 300 caracteres)
+// Responde 404 si el meme no existe y 403 si es de otro usuario.
+router.patch("/:id", withUser, async (request, response) => {
+  const meme = await MemeModel.findById(request.params.id);
+  if (!meme) {
+    response.status(404).json({ error: "meme not found" });
+    return;
+  }
+  if (meme.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only edit your own memes" });
+    return;
+  }
+
+  const content =
+    typeof request.body?.content === "string" ? request.body.content.trim() : "";
+
+  if (!content) {
+    response.status(400).json({ error: "content is required" });
+    return;
+  }
+  if (content.length > MAX_CONTENT_LENGTH) {
+    response.status(400).json({
+      error: `content must be at most ${MAX_CONTENT_LENGTH} characters long`,
+    });
+    return;
+  }
+
+  meme.content = content;
+  const savedMeme = await meme.save();
+
+  // Se devuelve con los totales de likes y dislikes, igual que el resto de los
+  // endpoints que entregan memes.
+  const [memeWithCounts] = await withReactionCounts([savedMeme]);
+  response.json(memeWithCounts);
+});
+
+// Solo el AUTOR del meme puede eliminarlo. Junto con el meme se borran sus
+// comentarios, sus reacciones y el archivo de la imagen, para no dejar datos
+// huérfanos. Responde 404 si no existe y 403 si es de otro usuario.
+router.delete("/:id", withUser, async (request, response) => {
+  const meme = await MemeModel.findById(request.params.id);
+  if (!meme) {
+    response.status(404).json({ error: "meme not found" });
+    return;
+  }
+  if (meme.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only delete your own memes" });
+    return;
+  }
+
+  await meme.deleteOne();
+  await Promise.all([
+    CommentModel.deleteMany({ meme: meme._id }),
+    ReactionModel.deleteMany({ meme: meme._id }),
+    removeImage(meme.image),
+  ]);
+
+  response.status(204).end();
 });
 
 export default router;

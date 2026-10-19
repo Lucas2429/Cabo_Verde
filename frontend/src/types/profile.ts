@@ -6,9 +6,12 @@ export type UserProfile = {
   // Nombre público; puede repetirse entre usuarios.
   displayName: string;
   description: string;
+  // URL de la foto de perfil, o null si todavía no subió una.
+  avatar: string | null;
   department: string;
   memesCount: number;
   // Los últimos memes publicados (máximo 3), del más nuevo al más antiguo.
+  // Para ver todos se usa userService.getMemes.
   latestMemes: MemesData[];
 };
 
