@@ -62,6 +62,10 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
   const [commentText, setCommentText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   // Comentario al que se está respondiendo (null = comentario de primer nivel).
   const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
   // Ids de los hilos con las respuestas desplegadas.
@@ -168,18 +172,71 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
     }
   };
 
+  const startEdit = (comment: CommentData) => {
+    setEditingId(comment.id);
+    setEditText(comment.content);
+    setEditError(null);
+  };
+
+  const cancelEdit = () => {
+    if (savingEdit) return;
+
+    setEditingId(null);
+    setEditText("");
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!editingId || savingEdit) return;
+
+    const content = editText.trim();
+
+    if (!content || content.length > MAX_CONTENT_LENGTH) return;
+
+    setSavingEdit(true);
+    setEditError(null);
+
+    try {
+      const updatedComment = await commentService.update(memeId, editingId, content);
+
+      setComments((prev) =>
+        prev.map((comment) =>
+          comment.id === updatedComment.id
+            ? updatedComment
+            : comment
+        )
+      );
+
+      setEditingId(null);
+      setEditText("");
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        onSessionExpired();
+        return;
+      }
+
+      setEditError(describeError(err));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const renderComment = (comment: CommentData, isReply: boolean) => {
     // Responder a una respuesta deja el comentario dentro del mismo hilo, así
     // que se aclara a quién va dirigido con un "@usuario".
     const parent = comment.parent ? byId.get(comment.parent) : undefined;
     const mention = isReply && parent && parent.parent ? parent.author : null;
 
+    const isOwner = username === comment.author;
+    const isEditing = editingId === comment.id;
+
     return (
       <div key={comment.id} className="flex gap-3">
         <div
-          className={`rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold shrink-0 ${
-            isReply ? "w-6 h-6 text-[10px]" : "w-8 h-8 text-xs"
-          }`}
+          className={`rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold shrink-0 ${isReply ? "w-6 h-6 text-[10px]" : "w-8 h-8 text-xs"
+            }`}
         >
           {comment.author[0]?.toUpperCase()}
         </div>
@@ -195,23 +252,74 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
               {timeAgo(comment.createdAt)}
             </span>
           </div>
-          <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 break-words">
-            {mention && (
-              <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                @{mention}{" "}
-              </span>
+          {isEditing ? (
+            <form onSubmit={handleSaveEdit} className="mt-2 space-y-2">
+              <input
+                type="text"
+                value={editText}
+                maxLength={MAX_CONTENT_LENGTH}
+                onChange={(event) => setEditText(event.target.value)}
+                autoFocus
+                className="w-full rounded-lg border border-gray-300 p-2 text-sm text-gray-900 dark:text-gray-100 dark:bg-gray-800"
+              />
+
+              {editError && (
+                <p role="alert" className="text-xs text-red-500">
+                  {editError}
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={savingEdit || !editText.trim()}
+                  className="rounded-lg bg-indigo-600 px-3 py-1 text-xs text-white disabled:opacity-50"
+                >
+                  {savingEdit ? "Guardando..." : "Guardar"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={savingEdit}
+                  className="rounded-lg bg-gray-200 px-3 py-1 text-xs text-gray-900 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )
+            : (
+              <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 break-words">
+                {mention && (
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                    @{mention}{" "}
+                  </span>
+                )}
+                {comment.content}
+              </p>
             )}
-            {comment.content}
-          </p>
           {/* Los invitados pueden leer, pero no escribir: sin botón. */}
-          {username && (
-            <button
-              type="button"
-              onClick={() => startReply(comment)}
-              className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-            >
-              Responder
-            </button>
+          {username && !isEditing && (
+            <div className="mt-1 flex gap-3">
+              <button
+                type="button"
+                onClick={() => startReply(comment)}
+                className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
+              >
+                Responder
+              </button>
+
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => startEdit(comment)}
+                  className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
+                >
+                  Editar
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

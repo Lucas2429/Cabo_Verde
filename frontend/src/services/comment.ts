@@ -24,7 +24,20 @@ const create = (memeId: string, content: string, parent: string | null = null) =
     .then((response) => response.data);
 };
 
+
+// Actualizar un comentario propio.
+const update = (memeId: string, commentId: string, content: string) => {
+  return axios
+    .patch<CommentData>(
+      `${baseUrl}/${memeId}/comments/${commentId}`,
+      { content },
+      {headers: {"X-CSRF-Token": getStoredSession()?.csrf ?? "", }, }
+    )
+    .then((response) => response.data);
+};
+
 export default {
   getByMeme,
   create,
+  update,
 };

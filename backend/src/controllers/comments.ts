@@ -90,4 +90,60 @@ router.post("/", withUser, async (request, response) => {
   response.status(201).json(savedComment);
 });
 
+
+/*
+ Editar un comentario propio.
+ PATCH /api/memes/:id/comments/:commentId
+ */
+router.patch("/:commentId", withUser, async (request, response) => {
+  const { id: memeId, commentId } = request.params;
+
+  // Validar identificadores
+  if (!mongoose.isValidObjectId(memeId) || !mongoose.isValidObjectId(commentId)) {
+    response.status(400).json({ error: "invalid id" });
+    return;
+  }
+
+  // Validar el nuevo contenido
+  const content = typeof request.body?.content === "string"
+    ? request.body.content.trim()
+    : "";
+
+  if (!content) {
+    response.status(400).json({ error: "content is required" });
+    return;
+  }
+
+  if (content.length > MAX_CONTENT_LENGTH) {
+    response.status(400).json({ error: `content must be at most ${MAX_CONTENT_LENGTH} characters long`, });
+    return;
+  }
+
+  // Buscar el comentario dentro del meme
+  const comment = await CommentModel.findOne({
+    _id: commentId,
+    meme: memeId,
+  });
+
+  if (!comment) {
+    response.status(404).json({ error: "comment not found" });
+    return;
+  }
+
+  // Comprobar que pertenece al usuario autenticado
+  if (comment.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only edit your own comments", });
+    return;
+  }
+
+  // Actualizar y guardar
+  comment.content = content;
+
+  const updatedComment = await comment.save();
+
+  // Devolver el comentario actualizado
+  response.status(200).json(updatedComment);
+});
+
+
 export default router;
