@@ -42,6 +42,9 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 ### Listar memes (público, no requiere sesión)
 GET http://localhost:3001/api/memes
 
+### Probar GET con ID inválido
+GET http://localhost:3001/api/memes/id-invalido/comments
+
 ### Subir un meme (requiere sesión; imagen JPG/PNG/WEBP/GIF de máx. 2 MB)
 # Cambia ./meme.png por la ruta de una imagen real.
 POST http://localhost:3001/api/memes
@@ -68,6 +71,15 @@ Content-Disposition: form-data; name="content"
 
 Intento de invitado
 ------CaboVerdeBoundary--
+
+### Probar POST con ID inválido
+POST http://localhost:3001/api/memes/id-invalido/comments
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Comentario de prueba"
+}
 
 ### Listar los comentarios de un meme (público, no requiere sesión)
 # Cambia <ID_DEL_MEME> por el id de un meme real (campo `id` de GET /api/memes).
@@ -146,3 +158,8 @@ Content-Type: application/json
 {
   "content": "Este es mi comentario editado"
 }
+
+
+### Eliminar lógicamente un comentario propio
+DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>/comments/<ID_DEL_COMENTARIO>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}

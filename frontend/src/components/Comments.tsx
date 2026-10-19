@@ -66,6 +66,12 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
   const [editText, setEditText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // Comentario seleccionado para eliminar.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Indica si hay una eliminación en proceso.
+  const [deleting, setDeleting] = useState(false);
+  // Error al intentar eliminar.
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // Comentario al que se está respondiendo (null = comentario de primer nivel).
   const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
   // Ids de los hilos con las respuestas desplegadas.
@@ -223,6 +229,67 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
     }
   };
 
+  const startDelete = (comment: CommentData) => {
+    setDeletingId(comment.id);
+    setDeleteError(null);
+  };
+
+  const cancelDelete = () => {
+    if (deleting) return;
+
+    setDeletingId(null);
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId || deleting) return;
+
+    const commentId = deletingId;
+
+    setDeleting(true);
+    setDeleteError(null);
+
+
+    try {
+      const result = await commentService.remove(memeId, commentId);
+
+      if (result.deletionType === "hard") {
+        // Sin respuestas: eliminar el comentario de la lista.
+        setComments((prev) =>
+          prev.filter((comment) => comment.id !== result.commentId)
+        );
+      } else {
+        // Con respuestas: mantener el comentario marcado como eliminado.
+        setComments((prev) =>
+          prev.map((comment) =>
+            comment.id === result.comment.id
+              ? result.comment
+              : comment
+          )
+        );
+      }
+
+      // Cancelar una respuesta pendiente al comentario eliminado.
+      if (replyingTo?.id === commentId) {
+        setReplyingTo(null);
+      }
+
+      setDeletingId(null);
+    }
+    catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        setDeletingId(null);
+        onSessionExpired();
+        return;
+      }
+
+      setDeleteError(describeError(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+
   const renderComment = (comment: CommentData, isReply: boolean) => {
     // Responder a una respuesta deja el comentario dentro del mismo hilo, así
     // que se aclara a quién va dirigido con un "@usuario".
@@ -231,6 +298,7 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
 
     const isOwner = username === comment.author;
     const isEditing = editingId === comment.id;
+    const isDeleted = Boolean(comment.deletedAt);
 
     return (
       <div key={comment.id} className="flex gap-3">
@@ -252,7 +320,11 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
               {timeAgo(comment.createdAt)}
             </span>
           </div>
-          {isEditing ? (
+          {isDeleted ? (
+            <p className="mt-0.5 text-sm italic text-gray-400">
+              Comentario eliminado
+            </p>
+          ) : isEditing ? (
             <form onSubmit={handleSaveEdit} className="mt-2 space-y-2">
               <input
                 type="text"
@@ -299,8 +371,9 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
                 {comment.content}
               </p>
             )}
-          {/* Los invitados pueden leer, pero no escribir: sin botón. */}
-          {username && !isEditing && (
+
+          {/* Los invitados pueden leer, pero no escribir. */}
+          {username && !isEditing && !isDeleted && (
             <div className="mt-1 flex gap-3">
               <button
                 type="button"
@@ -311,16 +384,27 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
               </button>
 
               {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => startEdit(comment)}
-                  className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
-                >
-                  Editar
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(comment)}
+                    className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => startDelete(comment)}
+                    className="text-xs font-semibold text-red-500 hover:text-red-700 cursor-pointer"
+                  >
+                    Eliminar
+                  </button>
+                </>
               )}
             </div>
           )}
+
         </div>
       </div>
     );
@@ -456,6 +540,62 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
           </p>
         )}
       </div>
+
+
+      {/* Ventana de confirmación para eliminar un comentario */}
+      {deletingId && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-comment-title"
+            className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900"
+          >
+            <h3
+              id="delete-comment-title"
+              className="text-lg font-semibold text-gray-900 dark:text-white"
+            >
+              ¿Eliminar comentario?
+            </h3>
+
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              Si el comentario no tiene respuestas, se eliminará
+              definitivamente. Si tiene respuestas, se mostrará como
+              "Comentario eliminado" para conservar la conversación.
+            </p>
+
+            {deleteError && (
+              <p
+                role="alert"
+                className="mt-3 text-sm text-red-500"
+              >
+                {deleteError}
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={cancelDelete}
+                disabled={deleting}
+                className="rounded-lg bg-gray-200 px-4 py-2 text-sm text-gray-900 disabled:opacity-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50 cursor-pointer"
+              >
+                {deleting ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 };
