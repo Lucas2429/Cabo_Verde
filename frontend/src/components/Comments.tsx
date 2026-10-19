@@ -303,12 +303,7 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
 
     return (
       <div key={comment.id} className="flex gap-3">
-        <div
-          className={`rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold shrink-0 ${isReply ? "w-6 h-6 text-[10px]" : "w-8 h-8 text-xs"
-            }`}
-        >
-          {comment.author[0]?.toUpperCase()}
-        </div>
+        
         <UserAvatar
           src={comment.authorAvatar}
           name={comment.author}
