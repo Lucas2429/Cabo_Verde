@@ -14,6 +14,11 @@ const router = express.Router({ mergeParams: true });
 // Público: cualquiera (incluidos invitados) puede leer los comentarios.
 // Del más nuevo al más viejo, igual que la galería.
 router.get("/", async (request, response) => {
+  // Validar el ID del meme
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(400).json({ error: "invalid meme id", });
+    return;
+  }
   const memeExists = await MemeModel.exists({ _id: request.params.id });
   if (!memeExists) {
     response.status(404).json({ error: "meme not found" });
@@ -32,6 +37,12 @@ router.get("/", async (request, response) => {
 //              comentario de este mismo meme. Si falta o es null, el comentario
 //              es de primer nivel.
 router.post("/", withUser, async (request, response) => {
+
+  // Validar el ID del meme
+  if (!mongoose.isValidObjectId(request.params.id)) {
+    response.status(400).json({ error: "invalid meme id", });
+    return;
+  }
   const content =
     typeof request.body?.content === "string" ? request.body.content.trim() : "";
 
@@ -70,6 +81,7 @@ router.post("/", withUser, async (request, response) => {
     const parentExists = await CommentModel.exists({
       _id: rawParent,
       meme: request.params.id,
+      deletedAt: null,
     });
     if (!parentExists) {
       response.status(404).json({ error: "parent comment not found" });
@@ -90,5 +102,137 @@ router.post("/", withUser, async (request, response) => {
   const [commentWithAvatar] = await withAuthorAvatars([savedComment]);
   response.status(201).json(commentWithAvatar);
 });
+
+
+/*
+ Editar un comentario propio.
+ PATCH /api/memes/:id/comments/:commentId
+ */
+router.patch("/:commentId", withUser, async (request, response) => {
+  const { id: memeId, commentId } = request.params;
+
+  // Validar identificadores
+  if (!mongoose.isValidObjectId(memeId) || !mongoose.isValidObjectId(commentId)) {
+    response.status(400).json({ error: "invalid id" });
+    return;
+  }
+
+  // Validar el nuevo contenido
+  const content = typeof request.body?.content === "string"
+    ? request.body.content.trim()
+    : "";
+
+  if (!content) {
+    response.status(400).json({ error: "content is required" });
+    return;
+  }
+
+  if (content.length > MAX_CONTENT_LENGTH) {
+    response.status(400).json({ error: `content must be at most ${MAX_CONTENT_LENGTH} characters long`, });
+    return;
+  }
+
+  // Buscar el comentario dentro del meme
+  const comment = await CommentModel.findOne({
+    _id: commentId,
+    meme: memeId,
+  });
+
+  if (!comment) {
+    response.status(404).json({ error: "comment not found" });
+    return;
+  }
+
+  // Comprobar que pertenece al usuario autenticado
+  if (comment.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only edit your own comments", });
+    return;
+  }
+
+  if (comment.deletedAt) {
+    response.status(409).json({ error: "cannot edit a deleted comment", });
+    return;
+  }
+
+  // Actualizar y guardar
+  comment.content = content;
+
+  const updatedComment = await comment.save();
+
+  // Devolver el comentario actualizado
+  response.status(200).json(updatedComment);
+});
+
+
+/*
+ Eliminar un comentario propio:
+ - Sin respuestas: eliminación física.
+ - Con respuestas: eliminación lógica.
+
+ DELETE /api/memes/:id/comments/:commentId
+ */
+
+router.delete("/:commentId", withUser, async (request, response) => {
+  const { id: memeId, commentId } = request.params;
+
+  if (!mongoose.isValidObjectId(memeId) || !mongoose.isValidObjectId(commentId)) {
+    response.status(400).json({ error: "invalid id" });
+    return;
+  }
+
+  const comment = await CommentModel.findOne({
+    _id: commentId,
+    meme: memeId,
+  });
+
+  if (!comment) {
+    response.status(404).json({ error: "comment not found" });
+    return;
+  }
+
+  if (comment.user.toString() !== request.userId) {
+    response.status(403).json({ error: "you can only delete your own comments", });
+    return;
+  }
+
+  if (comment.deletedAt) {
+    response.status(409).json({ error: "comment already deleted", });
+    return;
+  }
+
+  // TODO: Coordinar la creación de respuestas (POST) y la eliminación
+  // física de comentarios (DELETE) para evitar referencias huérfanas
+  // cuando ambas operaciones ocurran simultáneamente.
+  
+  // Buscar respuestas directas a este comentario.
+  const hasReplies = await CommentModel.exists({
+    parent: comment._id,
+    meme: memeId,
+  });
+
+  if (hasReplies) {
+    // Con respuestas: conservar el documento y las relaciones.
+    comment.content = "[Comentario eliminado]";
+    comment.deletedAt = new Date();
+
+    const deletedComment = await comment.save();
+
+    response.status(200).json({
+      deletionType: "soft",
+      comment: deletedComment,
+    });
+    return;
+  }
+
+  // Sin respuestas: eliminar físicamente el documento.
+  await comment.deleteOne();
+
+  response.status(200).json({
+    deletionType: "hard",
+    commentId: commentId,
+  });
+});
+
+
 
 export default router;

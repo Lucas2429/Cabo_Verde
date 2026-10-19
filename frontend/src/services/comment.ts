@@ -4,6 +4,16 @@ import { getStoredSession } from "./auth";
 
 const baseUrl = "/api/memes";
 
+type DeleteCommentResult =
+  | {
+    deletionType: "soft";
+    comment: CommentData;
+  }
+  | {
+    deletionType: "hard";
+    commentId: string;
+  };
+
 // Comentarios de un meme, del más nuevo al más viejo. Es público.
 const getByMeme = (memeId: string) => {
   return axios
@@ -24,7 +34,34 @@ const create = (memeId: string, content: string, parent: string | null = null) =
     .then((response) => response.data);
 };
 
+
+// Actualizar un comentario propio.
+const update = (memeId: string, commentId: string, content: string) => {
+  return axios
+    .patch<CommentData>(
+      `${baseUrl}/${memeId}/comments/${commentId}`,
+      { content },
+      { headers: { "X-CSRF-Token": getStoredSession()?.csrf ?? "", }, }
+    )
+    .then((response) => response.data);
+};
+
+
+
+const remove = (memeId: string, commentId: string) => {
+  return axios
+    .delete<DeleteCommentResult>(
+      `${baseUrl}/${memeId}/comments/${commentId}`,
+      { headers: { "X-CSRF-Token": getStoredSession()?.csrf ?? "", }, }
+    )
+    .then((response) => response.data);
+};
+
+
+
 export default {
   getByMeme,
   create,
+  update,
+  remove,
 };

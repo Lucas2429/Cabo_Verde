@@ -115,6 +115,14 @@ Content-Disposition: form-data; name="content"
 Intento de invitado
 ------CaboVerdeBoundary--
 
+### Probar POST con ID inválido
+POST http://localhost:3001/api/memes/id-invalido/comments
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Comentario de prueba"
+}
 ### Memes de una carrera (el filtro es por la carrera del AUTOR; público)
 GET http://localhost:3001/api/memes?department=DCC
 
@@ -191,3 +199,19 @@ POST http://localhost:3001/api/login/logout
 # Solo existe si el backend se inició con NODE_ENV=test (npm run start:test).
 # En cualquier otro entorno responde 404 "unknown endpoint".
 POST http://localhost:3001/api/testing/reset
+
+
+### Editar un comentario propio (requiere sesión)
+# Reemplaza los identificadores por valores reales.
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>/comments/<ID_DEL_COMENTARIO>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Este es mi comentario editado"
+}
+
+
+### Eliminar lógicamente un comentario propio
+DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>/comments/<ID_DEL_COMENTARIO>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
