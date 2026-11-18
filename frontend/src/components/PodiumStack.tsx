@@ -61,7 +61,7 @@ const PodiumStack = ({ group, onOpen }: Props) => {
       onClick={onOpen}
       aria-label={label}
       title={isStack ? "Ver los memes empatados" : "Ver meme"}
-      className="group flex flex-col items-center rounded-[22px] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-indigo-500"
+      className="group flex cursor-pointer flex-col items-center rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-indigo-500"
     >
       <div className={`relative aspect-square ${CARD_SIZE[position] ?? "w-44"}`}>
         {layers.map((meme, index) => (
@@ -74,7 +74,7 @@ const PodiumStack = ({ group, onOpen }: Props) => {
             )}`}
           >
             <div
-              className={`h-full w-full overflow-hidden rounded-[22px] border-4 border-white bg-gray-300 shadow-lg transition-[filter,box-shadow] duration-300 group-hover:shadow-2xl ${
+              className={`h-full w-full overflow-hidden rounded-2xl border-4 border-white bg-gray-300 shadow-lg transition-[filter,box-shadow] duration-300 group-hover:shadow-2xl group-hover:shadow-indigo-500/25 dark:border-gray-800 dark:bg-gray-700 ${
                 index > 0 ? "brightness-90 group-hover:brightness-100" : ""
               }`}
             >
@@ -119,7 +119,7 @@ const PodiumStack = ({ group, onOpen }: Props) => {
       <span
         className={`${
           isStack ? "mt-12" : "mt-6"
-        } rounded-full bg-[#b4b4b4] px-6 py-2 text-lg font-semibold text-black shadow-md transition-colors group-hover:bg-[#868686]`}
+        } rounded-full bg-indigo-50 px-6 py-2 text-lg font-semibold text-indigo-700 shadow-sm ring-1 ring-indigo-200 transition-colors group-hover:bg-indigo-600 group-hover:text-white group-hover:ring-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30 dark:group-hover:bg-indigo-500 dark:group-hover:text-white`}
       >
         {likesText}
       </span>

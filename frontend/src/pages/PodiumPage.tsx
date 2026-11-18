@@ -136,20 +136,20 @@ function PodiumPage() {
 
   const renderContent = () => {
     if (state.status === "loading") {
-      return <p className="mt-10 text-center text-gray-500">Cargando podio...</p>;
+      return <p className="mt-10 text-center text-gray-500 dark:text-gray-400">Cargando podio...</p>;
     }
     if (state.status === "error") {
       return (
-        <p className="mt-10 text-center text-gray-500">
+        <p className="mt-10 text-center text-gray-500 dark:text-gray-400">
           No se pudo cargar el podio. ¿Está corriendo el backend?
         </p>
       );
     }
     if (state.data.podium.length === 0) {
       return (
-        <p className="mt-10 text-center text-gray-500">
+        <p className="mt-10 text-center text-gray-500 dark:text-gray-400">
           Todavía no hay memes con likes esta semana.{" "}
-          <Link to="/" className="text-indigo-600 underline hover:text-indigo-800">
+          <Link to="/" className="font-semibold text-indigo-600 underline hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
             ¡Ve a darle like a alguno!
           </Link>
         </p>
@@ -167,7 +167,7 @@ function PodiumPage() {
           ))}
         </div>
 
-        <p className="mt-6 text-center text-xs text-gray-500">
+        <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
           Cuentan los memes publicados esta semana, de lunes a domingo. Si varios
           memes tienen los mismos likes, comparten puesto.
         </p>
@@ -176,17 +176,19 @@ function PodiumPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#52648a] flex flex-col">
+    <div className="app-bg">
       <div className="flex-1 px-3 sm:px-6 md:px-12 pt-6 md:pt-10 pb-8">
         <Header />
 
-        <main className="max-w-[2000px] mx-auto mt-6 md:mt-8 bg-white rounded-[30px] md:rounded-[50px] border-[6px] border-[#b4b4b4] p-4 sm:p-6 md:p-10 min-h-64">
+        <main className="surface mx-auto mt-6 min-h-64 max-w-[2000px] p-4 sm:p-6 md:mt-8 md:p-10">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <h2 className="inline-block bg-[#b4b4b4] text-black font-display text-3xl md:text-4xl tracking-wide rounded-full px-8 py-3">
+            <h2 className="section-title">
               Podio de la Semana
             </h2>
             {state.status === "ok" && (
-              <p className="text-sm text-gray-500">{formatWeek(state.data)}</p>
+              <p className="rounded-full bg-indigo-50 px-4 py-1.5 text-sm font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                {formatWeek(state.data)}
+              </p>
             )}
           </div>
 
@@ -216,7 +218,7 @@ function PodiumPage() {
         />
       </div>
 
-      <footer className="px-4 pb-3 text-xs sm:text-sm font-bold text-white">
+      <footer className="px-4 pb-5 pt-2 text-center text-xs text-gray-500 dark:text-gray-500 sm:text-sm">
         v0.0.1 · © 2026 Cabo Verde · Todos los derechos reservados
       </footer>
     </div>

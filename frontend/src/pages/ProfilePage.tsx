@@ -30,14 +30,11 @@ type LoadState =
 // LATEST_MEMES_LIMIT en backend/src/controllers/users.ts).
 const LATEST_MEMES_COUNT = 3;
 
-const pillClass =
-  "bg-[#b4b4b4] text-black font-semibold rounded-[30px] px-6 py-4 text-center w-full break-words";
+const pillClass = "info-pill";
 
-const grayButtonClass =
-  "bg-[#b4b4b4] hover:bg-[#868686] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#b4b4b4] text-black font-semibold rounded-full px-6 py-3 transition-colors cursor-pointer shadow-md";
+const grayButtonClass = "btn-secondary";
 
-const inputClass =
-  "w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm";
+const inputClass = "field";
 
 const describeEditError = (error: unknown): string => {
   if (axios.isAxiosError(error) && error.response) {
@@ -74,7 +71,7 @@ function Avatar({
 }) {
   const sizeClass =
     size === "lg"
-      ? "w-44 h-44 md:w-56 md:h-56 border-[6px]"
+      ? "w-44 h-44 md:w-56 md:h-56 border-4 shadow-xl shadow-indigo-500/20"
       : "w-24 h-24 border-4";
   const letterClass = size === "lg" ? "text-8xl md:text-9xl" : "text-5xl";
 
@@ -83,7 +80,7 @@ function Avatar({
       <img
         src={src}
         alt={`Foto de perfil de ${name}`}
-        className={`${sizeClass} shrink-0 rounded-full border-black bg-[#5a6c8a] object-cover`}
+        className={`${sizeClass} shrink-0 rounded-full border-indigo-500 bg-indigo-500 object-cover`}
       />
     );
   }
@@ -91,7 +88,7 @@ function Avatar({
   return (
     <div
       aria-hidden="true"
-      className={`${sizeClass} ${letterClass} shrink-0 rounded-full border-black bg-[#5a6c8a] text-white flex items-center justify-center font-display leading-none select-none`}
+      className={`${sizeClass} ${letterClass} shrink-0 rounded-full border-indigo-500 bg-indigo-500 text-white flex items-center justify-center font-display leading-none select-none`}
     >
       {name.charAt(0).toUpperCase()}
     </div>
@@ -179,7 +176,7 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
   return (
     <form onSubmit={handleSubmit} className="space-y-3 max-w-xl">
       <div>
-        <span className="block text-sm font-medium text-gray-700 mb-2">
+        <span className="field-label mb-2">
           Foto de perfil
         </span>
         <div className="flex flex-wrap items-center gap-4">
@@ -195,7 +192,7 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
             />
             <label
               htmlFor="avatar"
-              className="bg-[#b4b4b4] hover:bg-[#868686] peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-disabled:opacity-60 peer-disabled:cursor-not-allowed text-black text-sm font-semibold rounded-full px-5 py-2 transition-colors cursor-pointer shadow-md"
+              className="btn-secondary peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-disabled:cursor-not-allowed peer-disabled:opacity-60 !px-5 !py-2"
             >
               {shownAvatar ? "Cambiar foto" : "Subir foto"}
             </label>
@@ -204,21 +201,21 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
                 type="button"
                 onClick={handleRemoveAvatar}
                 disabled={saving}
-                className="text-sm text-red-600 font-semibold hover:underline disabled:opacity-60 cursor-pointer"
+                className="cursor-pointer text-sm font-semibold text-red-600 hover:underline disabled:opacity-60 dark:text-red-400"
               >
                 Quitar foto
               </button>
             )}
           </div>
         </div>
-        <p className="text-[11px] text-gray-500 mt-2">
+        <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
           JPG, PNG, WEBP o GIF · máximo {MAX_IMAGE_MB} MB
           {avatarFile && ` · ${avatarFile.name}`}
         </p>
       </div>
 
       <div>
-        <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="displayName" className="field-label">
           Nombre a mostrar
         </label>
         <input
@@ -230,13 +227,13 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
           onChange={(e) => setDisplayName(e.target.value)}
           className={inputClass}
         />
-        <p className="text-[11px] text-gray-500 mt-1">
+        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
           Puede repetirse. Tu @{profile.username} es único y no cambia.
         </p>
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="description" className="field-label">
           Descripción
         </label>
         <textarea
@@ -247,13 +244,13 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
           onChange={(e) => setDescription(e.target.value)}
           className={`${inputClass} resize-none`}
         />
-        <p className="text-[11px] text-gray-500 mt-1 text-right">
+        <p className="mt-1 text-right text-[11px] text-gray-500 dark:text-gray-400">
           {description.length}/{MAX_DESCRIPTION_LENGTH}
         </p>
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}
@@ -262,7 +259,7 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
         <button
           type="submit"
           disabled={saving}
-          className="bg-[#5a6c8a] hover:bg-[#485770] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+          className="btn-primary"
         >
           {saving ? "Guardando..." : "Guardar"}
         </button>
@@ -428,18 +425,18 @@ function ProfileView({ username }: { username: string }) {
 
   const renderContent = () => {
     if (state.status === "loading") {
-      return <p className="text-center text-gray-500">Cargando perfil...</p>;
+      return <p className="text-center text-gray-500 dark:text-gray-400">Cargando perfil...</p>;
     }
     if (state.status === "not-found") {
       return (
-        <p className="text-center text-gray-500">
+        <p className="text-center text-gray-500 dark:text-gray-400">
           No existe ningún usuario con el nombre @{username}.
         </p>
       );
     }
     if (state.status === "error") {
       return (
-        <p className="text-center text-gray-500">
+        <p className="text-center text-gray-500 dark:text-gray-400">
           No se pudo cargar el perfil. ¿Está corriendo el backend?
         </p>
       );
@@ -462,7 +459,7 @@ function ProfileView({ username }: { username: string }) {
           {/* Departamento del usuario ("Sin especificar" en las cuentas antiguas). */}
           <div className={pillClass}>Departamento: {profile.department}</div>
 
-          <div className={profile.description ? pillClass : `${pillClass} text-gray-600`}>
+          <div className={profile.description ? pillClass : `${pillClass} !font-normal text-gray-500 dark:!text-gray-400`}>
             {profile.description || "Sin descripción"}
           </div>
           <div className={pillClass}>Reportes recibidos: {reportsReceived}</div>
@@ -488,10 +485,10 @@ function ProfileView({ username }: { username: string }) {
                 />
               ) : (
                 <>
-                  <h2 className="text-4xl sm:text-5xl font-bold text-black break-words">
+                  <h2 className="break-words text-4xl font-bold text-gray-900 dark:text-gray-100 sm:text-5xl">
                     {profile.displayName}
                   </h2>
-                  <p className="text-2xl text-gray-700 mt-1 break-all">
+                  <p className="mt-1 break-all text-2xl text-indigo-600 dark:text-indigo-400">
                     @{profile.username}
                   </p>
                 </>
@@ -512,7 +509,7 @@ function ProfileView({ username }: { username: string }) {
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="flex items-center gap-1.5 text-red-600 font-semibold hover:underline cursor-pointer"
+                      className="flex cursor-pointer items-center gap-1.5 font-semibold text-red-600 hover:underline dark:text-red-400"
                     >
                       <LogoutIcon fontSize="small" />
                       Cerrar sesión
@@ -534,7 +531,7 @@ function ProfileView({ username }: { username: string }) {
 
           <div className="mt-8">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-              <h3 className="inline-block bg-[#b4b4b4] text-black font-semibold rounded-full px-8 py-4">
+              <h3 className="section-title !text-2xl md:!text-3xl">
                 {showAll ? "Todas las publicaciones" : "Últimas publicaciones"}
               </h3>
 
@@ -557,13 +554,13 @@ function ProfileView({ username }: { username: string }) {
             </div>
 
             {allError && (
-              <p role="alert" className="mb-4 text-sm text-red-600">
+              <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">
                 No se pudieron cargar todas las publicaciones. Intenta nuevamente.
               </p>
             )}
 
             {visibleMemes.length === 0 ? (
-              <p className="text-gray-500">
+              <p className="text-gray-500 dark:text-gray-400">
                 {isOwnProfile
                   ? "Todavía no has publicado nada."
                   : "Este usuario todavía no ha publicado nada."}
@@ -599,11 +596,11 @@ function ProfileView({ username }: { username: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#52648a] flex flex-col">
+    <div className="app-bg">
       <div className="flex-1 px-3 sm:px-6 md:px-12 pt-6 md:pt-10 pb-8">
         <Header />
 
-        <main className="max-w-[2000px] mx-auto mt-6 md:mt-8 bg-white rounded-[30px] md:rounded-[50px] border-[6px] border-[#b4b4b4] p-4 sm:p-6 md:p-10 min-h-64">
+        <main className="surface mx-auto mt-6 min-h-64 max-w-[2000px] p-4 sm:p-6 md:mt-8 md:p-10">
           {renderContent()}
         </main>
 
@@ -639,7 +636,7 @@ function ProfileView({ username }: { username: string }) {
         )}
       </div>
 
-      <footer className="px-4 pb-3 text-xs sm:text-sm font-bold text-white">
+      <footer className="px-4 pb-5 pt-2 text-center text-xs text-gray-500 dark:text-gray-500 sm:text-sm">
         v0.0.1 · © 2026 Cabo Verde · Todos los derechos reservados
       </footer>
     </div>

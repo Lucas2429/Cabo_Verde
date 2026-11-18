@@ -26,7 +26,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
   const isOwner = onEdit !== undefined && onDelete !== undefined;
 
   return (
-    <div className="group relative overflow-hidden rounded-[22px] bg-gray-300 shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
+    <div className="group relative cursor-pointer overflow-hidden rounded-2xl bg-gray-200 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/20 dark:bg-gray-800 dark:ring-white/25">
       <img
         src={meme.image}
         alt={meme.content || "Meme"}
@@ -35,6 +35,13 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
         // Al abrir el meme, el modal la muestra completa.
         className="w-full h-auto max-h-[800px] object-cover object-top block"
         decoding="async"
+      />
+
+      {/* Borde de hover: va por encima de la imagen para que se vea igual en
+          cualquier meme (claro, oscuro o con bordes blancos). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-inset ring-indigo-500 transition-opacity duration-300 group-hover:opacity-100"
       />
 
       {onEdit && onDelete && (
@@ -52,7 +59,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
       </div>
 
       {/* Botones: suben desde abajo al pasar el mouse. */}
-      <div className="absolute bottom-3 inset-x-0 mx-auto w-fit flex items-center gap-1 rounded-full bg-gray-700/85 backdrop-blur-xs px-3 py-1.5 shadow-lg translate-y-[200%] group-hover:translate-y-0 transition-transform duration-300 ease-in-out">
+      <div className="absolute bottom-3 inset-x-0 mx-auto flex w-fit translate-y-[200%] items-center gap-1 rounded-full bg-gray-900/85 px-3 py-1.5 shadow-lg ring-1 ring-white/10 backdrop-blur-md transition-transform duration-300 ease-in-out group-hover:translate-y-0">
         {/* Si el invitado no tiene sesión, onReact lo lleva al login. */}
         <button
           type="button"
@@ -64,7 +71,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
             onReact("like");
           }}
           className={`${actionClass} gap-1 px-2.5 ${
-            reaction === "like" ? "text-green-400" : "text-cyan-300"
+            reaction === "like" ? "text-emerald-400" : "text-indigo-300"
           }`}
         >
           {reaction === "like" ? <ThumbUpAltIcon /> : <ThumbUpOffAltIcon />}
@@ -80,7 +87,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
             onReact("dislike");
           }}
           className={`${actionClass} gap-1 px-2.5 ${
-            reaction === "dislike" ? "text-red-400" : "text-cyan-300"
+            reaction === "dislike" ? "text-rose-400" : "text-indigo-300"
           }`}
         >
           {reaction === "dislike" ? <ThumbDownAltIcon /> : <ThumbDownOffAltIcon />}
@@ -91,7 +98,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
           title="Reportar"
           aria-label="Reportar"
           onClick={(e) => e.stopPropagation()}
-          className={`${actionClass} text-red-500`}
+          className={`${actionClass} text-rose-400`}
         >
           <ReportOutlinedIcon />
         </button>
@@ -100,7 +107,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
           type="button"
           title="Comentarios"
           aria-label="Comentarios"
-          className={`${actionClass} text-cyan-300`}
+          className={`${actionClass} text-indigo-300`}
         >
           <ChatBubbleOutlinedIcon />
         </button>

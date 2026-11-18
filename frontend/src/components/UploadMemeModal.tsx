@@ -104,16 +104,16 @@ const UploadMemeModal = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-[30px] border-4 border-gray-800 w-full max-w-md max-h-[95vh] overflow-y-auto shadow-2xl relative"
+        className="modal-card max-h-[95vh] max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Añada su meme
           </h2>
           <button
             onClick={onClose}
-            className="bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transition-colors cursor-pointer flex items-center justify-center"
+            className="icon-btn"
             type="button"
             aria-label="Cerrar"
           >
@@ -123,7 +123,7 @@ const UploadMemeModal = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <span className="field-label">
               Imagen
             </span>
             <input
@@ -135,7 +135,7 @@ const UploadMemeModal = ({
             />
             <label
               htmlFor="meme-image"
-              className="flex min-h-32 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 text-center text-sm text-gray-500 hover:border-indigo-500 transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500"
+              className="flex min-h-32 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-2 text-center text-sm text-gray-500 transition-colors hover:border-indigo-500 hover:bg-indigo-50/50 focus-within:ring-2 focus-within:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-800/60"
             >
               {preview ? (
                 <img
@@ -147,7 +147,7 @@ const UploadMemeModal = ({
                 <span>Haz clic para elegir una imagen</span>
               )}
             </label>
-            <span className="text-[11px] text-gray-400 mt-1 block">
+            <span className="field-hint">
               JPG, PNG, WEBP o GIF · máximo {MAX_IMAGE_MB} MB
               {image && ` · ${image.name}`}
             </span>
@@ -156,7 +156,7 @@ const UploadMemeModal = ({
           <div>
             <label
               htmlFor="meme-content"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              className="field-label"
             >
               Descripción
             </label>
@@ -167,9 +167,9 @@ const UploadMemeModal = ({
               maxLength={MAX_CONTENT_LENGTH}
               placeholder="Escribe algo gracioso..."
               onChange={(e) => setContent(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="field"
             />
-            <span className="text-[11px] text-gray-400 mt-1 block text-right">
+            <span className="field-hint text-right">
               {content.length}/{MAX_CONTENT_LENGTH}
             </span>
           </div>
@@ -184,7 +184,7 @@ const UploadMemeModal = ({
             <button
               type="submit"
               disabled={submitting}
-              className="bg-[#5a6c8a] hover:bg-[#485770] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+              className="btn-primary"
             >
               {submitting ? "Subiendo..." : "Add Meme"}
             </button>

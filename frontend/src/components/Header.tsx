@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuth } from "../context/auth";
+import UserAvatar from "./UserAvatar";
 
 interface Props {
   // Permite a la página hacer algo extra al cerrar sesión (por ejemplo cerrar
@@ -9,80 +11,83 @@ interface Props {
   onLogout?: () => void | Promise<void>;
 }
 
-// Barra superior compartida por todas las páginas.
+// Barra superior compartida por todas las páginas. Queda fija arriba con un
+// efecto de vidrio para que el contenido pase por detrás al hacer scroll.
 function Header({ onLogout }: Props) {
   const { username, avatar, logout } = useAuth();
   const handleLogout = onLogout ?? logout;
   const profilePath = username ? `/u/${encodeURIComponent(username)}` : "/login";
 
   return (
-    <header className="max-w-[2000px] mx-auto bg-[#b4b4b4] rounded-full shadow-md px-5 sm:px-8 py-3 md:py-5 grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_1fr] items-center gap-4">
+    <header className="sticky top-3 z-30 mx-auto grid max-w-[2000px] grid-cols-[1fr_auto] items-center gap-4 rounded-full border border-gray-300 bg-white/80 px-4 py-2.5 shadow-lg shadow-indigo-500/5 backdrop-blur-md dark:border-gray-500 dark:bg-gray-900/80 sm:px-6 md:grid-cols-[1fr_auto_1fr] md:py-3">
       <div className="hidden md:block" />
 
-      <h1 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-wide text-black text-center leading-none">
-        <Link to="/" title="Ir al inicio">
+      <h1 className="text-center font-display text-3xl leading-none tracking-wide sm:text-4xl md:text-5xl">
+        <Link to="/" title="Ir al inicio" className="gradient-text">
           HIJOS DE LA (PUNTO).FOO
         </Link>
       </h1>
 
-      <div className="justify-self-end flex items-center gap-3 text-black">
+      <div className="flex items-center gap-2 justify-self-end sm:gap-3">
         <Link
           to="/podio"
           title="Podio de la semana"
           aria-label="Podio de la semana"
-          className="text-4xl sm:text-5xl leading-none text-amber-400 drop-shadow hover:scale-110 transition-transform"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-2xl text-amber-500 transition-transform hover:scale-110 dark:bg-amber-400/15 dark:text-amber-300 sm:h-11 sm:w-11 sm:text-3xl"
         >
           <EmojiEventsIcon fontSize="inherit" />
         </Link>
 
         {username ? (
           <>
-            <div className="flex flex-col items-end leading-tight text-sm">
+            <div className="hidden flex-col items-end text-sm leading-tight sm:flex">
               <Link
                 to={profilePath}
                 title="Ver mi perfil"
-                className="font-semibold hover:underline"
+                className="font-semibold text-gray-900 hover:text-indigo-600 dark:text-gray-100 dark:hover:text-indigo-400"
               >
                 {username}
               </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="text-xs underline hover:no-underline cursor-pointer"
+                className="cursor-pointer text-xs text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
               >
                 Cerrar sesión
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="icon-btn sm:hidden"
+            >
+              <LogoutIcon fontSize="small" />
+            </button>
             <Link
               to={profilePath}
               title="Ver mi perfil"
               aria-label="Ver mi perfil"
-              className="text-5xl md:text-6xl leading-none hover:opacity-80 transition-opacity"
+              className="shrink-0 transition-opacity hover:opacity-80"
             >
-              {avatar ? (
-                <img
-                  src={avatar}
-                  alt=""
-                  className="w-12 h-12 md:w-15 md:h-15 rounded-full border-2 border-black object-cover bg-[#5a6c8a]"
-                />
-              ) : (
-                <AccountCircleIcon fontSize="inherit" />
-              )}
+              <UserAvatar
+                src={avatar}
+                name={username}
+                className="h-10 w-10 text-base ring-2 ring-indigo-500/60 sm:h-11 sm:w-11"
+              />
             </Link>
           </>
         ) : (
           <>
-            <Link
-              to="/login"
-              className="hidden sm:inline text-sm font-medium hover:underline"
-            >
+            <Link to="/login" className="btn-primary hidden !px-5 !py-2 sm:inline-flex">
               Iniciar sesión
             </Link>
             <Link
               to="/login"
               title="Iniciar sesión"
               aria-label="Iniciar sesión"
-              className="text-5xl md:text-6xl leading-none hover:opacity-80 transition-opacity"
+              className="text-4xl leading-none text-indigo-600 transition-opacity hover:opacity-80 dark:text-indigo-400 sm:hidden"
             >
               <AccountCircleIcon fontSize="inherit" />
             </Link>

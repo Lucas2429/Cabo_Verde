@@ -45,11 +45,21 @@ const MemeModal = ({
       >
         <div className="flex-1 bg-black flex flex-col justify-between relative overflow-hidden h-1/2 md:h-full">
           <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+            {/* La descripción va arriba de la imagen, pegada a ella, como el texto
+                de un meme. `w-0 min-w-full` hace que el texto tome el ancho de la
+                imagen (y no la ensanche) y se ajuste en varias líneas. */}
+            <figure className="m-0 flex max-h-full min-h-0 max-w-full flex-col items-center overflow-hidden rounded-xl bg-white shadow-lg">
+              {meme.content && (
+                <figcaption className="w-0 min-w-full whitespace-pre-wrap break-words px-4 py-3 text-left text-base font-medium text-gray-900">
+                  {meme.content}
+                </figcaption>
+              )}
             <img
               src={meme.image} 
               alt={meme.content || ""}
-              className="max-h-full max-w-full object-contain rounded-lg"
+              className="min-h-0 max-w-full object-contain"
             />
+            </figure>
           </div>
           <div className="bg-gray-950/80 backdrop-blur-md p-4 flex items-center justify-around text-white border-t border-gray-800">
             {/* Si el invitado no tiene sesión, onReact lo lleva al login. */}
@@ -82,7 +92,7 @@ const MemeModal = ({
         </div>
         <div className="w-full md:w-96 flex flex-col bg-gray-50 dark:bg-gray-900 h-1/2 md:h-full border-l border-gray-200 dark:border-gray-800">
           <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between">
               <Link
                 to={`/u/${encodeURIComponent(meme.author)}`}
                 title="Ver perfil"
@@ -94,9 +104,6 @@ const MemeModal = ({
                 {new Date(meme.createdAt).toLocaleDateString()}
               </span>
             </div>
-            <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">
-              {meme.content}
-            </p>
           </div>
 
           {/* Lista y formulario de comentarios. El key reinicia el estado al
