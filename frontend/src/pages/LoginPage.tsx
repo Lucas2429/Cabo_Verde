@@ -132,6 +132,7 @@ function LoginPage() {
               Usuario
             </label>
             <input
+              data-testid="username"
               id="username"
               type="text"
               value={username}
@@ -165,6 +166,7 @@ function LoginPage() {
               Contraseña
             </label>
             <input
+              data-testid="password"
               id="password"
               type="password"
               value={password}
@@ -199,6 +201,7 @@ function LoginPage() {
           )}
 
           <button
+            data-testid="login-button"
             type="submit"
             disabled={submitting}
             className="w-full bg-[#5a6c8a] hover:bg-[#485770] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"

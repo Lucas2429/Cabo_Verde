@@ -233,3 +233,14 @@ npm run dev:test    # usa MONGODB_DBNAME_TEST y habilita /api/testing/reset
 ```
 
 `POST /api/testing/reset` vacía los memes, comentarios, reacciones y usuarios de la base de pruebas. Solo existe con `NODE_ENV=test`.
+
+### Pruebas E2E
+
+Con MongoDB configurado, inicia el backend de pruebas (`npm run dev:test`) y el frontend (`npm run dev` desde `frontend`). En otra terminal:
+
+```bash
+cd e2e-test
+npm test
+```
+
+Playwright prueba Chromium, Firefox y WebKit contra `http://localhost:5173`. Cada flujo crea cuentas y publicaciones únicas en la base de pruebas.
