@@ -2,7 +2,7 @@
 
 CC5003 - Aplicaciones Web Reactivas
 
-Sitio de memes estilo Pinterest: cualquiera puede ver los memes, sus comentarios y el podio de la semana, pero solo los usuarios con sesión pueden subir un meme (una imagen + una descripción), comentar o dar like/dislike. Cada usuario tiene un perfil con su foto, su carrera y sus publicaciones, que puede editar y eliminar.
+Sitio de memes estilo Pinterest: cualquiera puede ver los memes, sus comentarios y el podio de la semana, pero solo los usuarios con sesión pueden subir un meme (una imagen + una descripción), comentar o dar like/dislike. Cada usuario tiene un perfil con su foto, su carrera y sus publicaciones, que puede editar y eliminar. Cualquier usuario con sesión puede **reportar** publicaciones y comentarios ajenos; los **administradores** revisan los reportes y moderan el contenido (ver [Moderación](#moderación)).
 
 ## Estructura
 
@@ -53,6 +53,18 @@ npm run dev             # http://localhost:5173
 
 Vite reenvía las llamadas a `/api` y `/uploads` al backend (ver `frontend/vite.config.ts`). Por eso el navegador siempre habla con un solo origen y no hace falta configurar CORS.
 
+**3. Crear un administrador** (opcional)
+
+El rol no se puede elegir al registrarse ni desde la web: se asigna por consola a un usuario que ya exista.
+
+```bash
+cd backend
+npm run set-role -- <usuario> admin     # hacerlo admin
+npm run set-role -- <usuario> user      # quitarle el rol
+```
+
+Usa la base de datos del `.env` (con `NODE_ENV=test`, la de pruebas). El backend lee el rol en cada petición, así que quitarlo rige al instante; en el navegador, el cambio se ve al recargar la página.
+
 ## Cómo funciona el backend
 
 Código en `backend/src`:
@@ -62,8 +74,10 @@ app.ts                  Configuración de Express, rutas y archivos estáticos
 index.ts                Arranca el servidor
 controllers/
   memes.ts              Listar/filtrar memes, podio, subir, editar y eliminar un meme
-  comments.ts           Listar y crear comentarios de un meme
+  comments.ts           Listar, crear, editar y eliminar comentarios de un meme
   reactions.ts          Poner y quitar like/dislike de un meme
+  reports.ts            Reportar un meme o un comentario ajeno
+  admin.ts              Rutas de moderación (solo admins): reportes, eliminar, limitar comentarios, bitácora
   users.ts              Registro, perfil público, memes de un usuario y edición del perfil propio
   login.ts              Login, sesión actual y logout
   testing.ts            Reinicio de la BD (solo con NODE_ENV=test)
@@ -71,12 +85,16 @@ models/
   memes.ts              Esquema del meme
   comment.ts            Esquema del comentario y withAuthorAvatars (foto del autor)
   reaction.ts           Esquema de la reacción (like/dislike) y conteo de totales
-  user.ts               Esquema del usuario (incluye carrera y foto de perfil)
+  user.ts               Esquema del usuario (incluye carrera, foto de perfil y rol)
+  report.ts             Esquema del reporte (motivos, estados y límites)
+  moderationLog.ts      Bitácora de moderación (quién hizo qué y por qué)
+scripts/
+  setRole.ts            Asigna o quita el rol de admin (npm run set-role)
 utils/
   upload.ts             Subida y validación de imágenes (memes y fotos de perfil)
   podium.ts             Arma el podio a partir de los memes de la semana
   week.ts               Calcula la semana en curso (lunes a domingo, hora de Chile)
-  middleware.ts         Autenticación, logger y manejo de errores
+  middleware.ts         Autenticación (withUser, withAdmin), logger y manejo de errores
   config.ts             Lectura del .env
 ```
 
@@ -94,7 +112,11 @@ utils/
 | PATCH | `/api/memes/:id` | **Sí, solo el autor** | Cambia la descripción del meme (JSON: `content`, 1 a 300 caracteres). `403` si no es tuyo, `404` si no existe |
 | DELETE | `/api/memes/:id` | **Sí, solo el autor** | Elimina el meme con sus comentarios, reacciones e imagen. Responde `204`; `403` si no es tuyo |
 | GET | `/api/memes/:id/comments` | No | Lista los comentarios de un meme, del más nuevo al más viejo (con `authorAvatar`) |
-| POST | `/api/memes/:id/comments` | **Sí** | Comenta un meme (JSON: `content`, 1 a 300 caracteres, y `parent` opcional para responder a otro comentario) |
+| POST | `/api/memes/:id/comments` | **Sí** | Comenta un meme (JSON: `content`, 1 a 300 caracteres, y `parent` opcional para responder a otro comentario). `403` si un admin limitó los comentarios de ese meme |
+| PATCH | `/api/memes/:id/comments/:commentId` | **Sí, solo el autor** | Edita un comentario propio (JSON: `content`) |
+| DELETE | `/api/memes/:id/comments/:commentId` | **Sí, solo el autor** | Elimina un comentario propio (físico si no tiene respuestas; si las tiene, queda como "Comentario eliminado") |
+| POST | `/api/memes/:id/report` | **Sí** | Reporta un meme ajeno (JSON: `reason` y `details`, ver [Moderación](#moderación)) |
+| POST | `/api/memes/:id/comments/:commentId/report` | **Sí** | Reporta un comentario ajeno (mismo formato) |
 | PUT | `/api/memes/:id/reaction` | **Sí** | Pone o cambia tu reacción (JSON: `type` = `like` o `dislike`) |
 | DELETE | `/api/memes/:id/reaction` | **Sí** | Quita tu reacción |
 | POST | `/api/users` | No | Crea un usuario (`username`, `email`, `password`; opcionales `department`, `displayName`, `description`) |
@@ -103,8 +125,17 @@ utils/
 | GET | `/api/users/:username/memes` | No | Todos los memes de un usuario, del más nuevo al más viejo (con `likes` y `dislikes`) |
 | PATCH | `/api/users/me` | **Sí** | Edita tu perfil: `displayName`, `description`, foto nueva (`image`, solo con `multipart/form-data`) o `removeAvatar: true` para quitarla. Acepta JSON o `multipart/form-data` |
 | POST | `/api/login` | No | Inicia sesión |
-| GET | `/api/login/me` | Sí | Datos del usuario de la sesión |
+| GET | `/api/login/me` | Sí | Datos del usuario de la sesión (incluye su `role`) |
 | POST | `/api/login/logout` | No | Cierra la sesión |
+| GET | `/api/admin/reports/memes` | **Solo admin** | Posts reportados, agrupados. `?status=pending` (por defecto) o `resolved` |
+| GET | `/api/admin/reports/comments` | **Solo admin** | Comentarios reportados (con el texto original). Mismo `status` |
+| GET | `/api/admin/reports/users` | **Solo admin** | Usuarios con reportes `pending` y `accepted` |
+| POST | `/api/admin/memes/:id/remove` | **Solo admin** | Elimina un post por moderación (JSON: `reason`, 3 a 200 caracteres) |
+| PUT | `/api/admin/memes/:id/comments-lock` | **Solo admin** | Limita o permite los comentarios de un post (JSON: `locked`) |
+| POST | `/api/admin/memes/:id/dismiss-reports` | **Solo admin** | Descarta los reportes pendientes de un post |
+| POST | `/api/admin/comments/:id/remove` | **Solo admin** | Elimina un comentario por moderación (JSON: `reason`) |
+| POST | `/api/admin/comments/:id/dismiss-reports` | **Solo admin** | Descarta los reportes pendientes de un comentario |
+| GET | `/api/admin/log` | **Solo admin** | Últimas 100 acciones de moderación |
 | POST | `/api/testing/reset` | No | Vacía la BD de pruebas. **Solo existe con `NODE_ENV=test`**; en otro entorno responde `404` |
 | GET | `/uploads/<archivo>` | No | Sirve las imágenes subidas (memes y fotos de perfil) |
 
@@ -130,6 +161,28 @@ Cada usuario tiene **como máximo una reacción por meme** (like o dislike), gar
 
 Los comentarios guardan solo el nombre del autor y su id. La foto de perfil **no se copia** en cada comentario: `withAuthorAvatars` (en `models/comment.ts`) la busca en la colección de usuarios al responder y la entrega como `authorAvatar` (`null` si no tiene). Así, si alguien cambia su foto, todos sus comentarios anteriores la muestran. Todo endpoint que devuelva comentarios debe pasar por esa función.
 
+### Moderación
+
+Hay **un solo nivel de moderación: `admin`** (administrador/moderador). El rol vive en el usuario (`role`, por defecto `user`) y solo se asigna con `npm run set-role`. Las rutas de `/api/admin` pasan por `withAdmin` (`utils/middleware.ts`): validan la sesión y **leen el rol de la base de datos en cada petición** (no del token); un usuario normal recibe `403`. Esconder las opciones en el frontend es solo comodidad, igual que con editar y eliminar lo propio.
+
+**Reportes** (`controllers/reports.ts`, `models/report.ts`)
+
+- Se pueden reportar memes y comentarios **ajenos**. El motivo es una lista cerrada: `hate`, `fraud`, `fake_news`, `harassment` u `other`. Con `other` hay que explicar cuál en `details` (máx. 200 caracteres). Los textos que ve el usuario están en `frontend/src/types/report.ts`.
+- Reglas anti-abuso: no se puede reportar lo propio (`403`), un usuario reporta cada contenido **una sola vez** (`409`; lo garantiza un índice único) y hay un tope de 20 reportes por hora (`429`).
+- Cada reporte guarda el **autor del contenido** al crearse, así el contador por usuario es una consulta directa. Estados: `pending` (sin revisar), `accepted` (un admin eliminó el contenido) y `dismissed` (un admin decidió no actuar). La pestaña "Usuarios" separa pendientes de aceptados y **no cuenta los descartados**, para que los reportes falsos no manchen a nadie.
+
+**Acciones de los admins** (`controllers/admin.ts`)
+
+- **Eliminar un post** es un "borrado con huella": el meme no se borra de la base de datos, se marca (`removedAt`, `removedBy`, `removalReason`) y desaparece de todas las consultas normales. Esto lo hace un filtro automático en `models/memes.ts` (`find`, `findOne`, `countDocuments`), de modo que la galería, el podio, los perfiles, los comentarios y las reacciones lo ignoran sin que cada endpoint tenga que acordarse. Las rutas de admin que necesitan verlo usan `.setOptions({ includeRemoved: true })`. El motivo es obligatorio.
+- **Eliminar un comentario** funciona igual, pero nunca se borra del hilo: queda como **"Comentario eliminado"** (como en Reddit), con sus respuestas debajo. El texto original se conserva en `content` y solo lo ven los admins; al público `toJSON` le entrega el comentario como eliminado (`models/comment.ts`).
+- **Limitar comentarios** (como en Instagram): el post y sus comentarios se siguen viendo, pero nadie puede comentar ni responder (`POST` devuelve `403`). Se puede revertir.
+- **Descartar reportes**: los pasa a `dismissed`. Eliminar un post acepta sus reportes pendientes y deja como `dismissed` los de sus comentarios (el post ya no existe); eliminar un comentario acepta sus reportes pendientes.
+- Un admin **no puede moderar contenido de otro admin** (`403`).
+- Toda acción queda en la **bitácora** (`models/moderationLog.ts`, `GET /api/admin/log`): quién, qué, sobre qué y con qué motivo.
+- Si el **autor** borra su propio contenido (`DELETE /api/memes/:id` o su comentario), también se borran sus reportes: ya no hay nada que revisar. Un contenido que un admin ya eliminó no se puede editar ni borrar por su autor, así la evidencia queda intacta.
+
+> **Importante:** el archivo de imagen de un meme eliminado por moderación **sigue en `backend/uploads/`** (es la evidencia) y se puede abrir si alguien conoce su URL exacta (un nombre aleatorio). Solo deja de aparecer en la app.
+
 ### Podio semanal
 
 `GET /api/memes/podium` responde `{ weekStart, weekEnd, podium: [{ position, likes, memes }] }`.
@@ -152,7 +205,7 @@ Al reemplazar o quitar una foto de perfil, la imagen anterior se borra del disco
 
 ## Cómo funciona el frontend
 
-Es una SPA: React Router resuelve las rutas en el navegador y nunca se recarga la página. Rutas: `/` (galería), `/login`, `/podio` (podio de la semana) y `/u/:username` (perfil).
+Es una SPA: React Router resuelve las rutas en el navegador y nunca se recarga la página. Rutas: `/` (galería), `/login`, `/podio` (podio de la semana), `/u/:username` (perfil) y `/admin/reportes` (vista de reportes, solo admins).
 
 Código en `frontend/src`:
 
@@ -163,31 +216,42 @@ pages/
   LoginPage.tsx         Iniciar sesión y crear cuenta (ruta /login)
   PodiumPage.tsx        Podio de la semana (ruta /podio)
   ProfilePage.tsx       Perfil de un usuario y sus publicaciones (ruta /u/:username)
+  AdminReportsPage.tsx  Vista de reportes con pestañas Posts / Comentarios / Usuarios (ruta /admin/reportes, solo admins)
 components/
-  Header.tsx            Barra superior compartida (podio, perfil y foto del usuario)
+  Header.tsx            Barra superior compartida (podio, botón "Reportes" para admins, perfil y foto del usuario)
+  RouteGuards.tsx       ProtectedRoute (exige sesión) y AdminRoute (exige rol admin) para las rutas protegidas
   CategoryBar.tsx       Categorías por carrera y botón "Filtrar" (orden) de la galería
   Meme.tsx              Tarjeta de un meme (con botones de editar/eliminar si es propio)
   MemeModal.tsx         Vista ampliada de un meme (imagen completa)
   MemeOwnerActions.tsx  Tres puntitos (editar) y basurero rojo (eliminar) de un meme propio
   EditMemeModal.tsx     Formulario para cambiar la descripción de un meme propio
   DeleteMemeModal.tsx   Confirmación antes de eliminar un meme propio
-  Comments.tsx          Lista de comentarios y formulario para comentar
+  Comments.tsx          Lista de comentarios y formulario para comentar (con reportar y moderar)
+  ReportModal.tsx       Formulario para reportar un meme o un comentario (se dibuja en un portal sobre el <body>)
+  ModerationReasonModal.tsx  Confirmación con motivo obligatorio para eliminar por moderación
+  MemeAdminMenu.tsx     Engranaje de admin: limitar/permitir comentarios y eliminar un meme
   UserAvatar.tsx        Círculo con la foto de un usuario (o su inicial) para los comentarios
   UploadMemeModal.tsx   Formulario para subir un meme
   DepartmentSelect.tsx  Selector desplegable de carrera (formulario de registro)
   PodiumStack.tsx       Un puesto del podio (pila de tarjetas si hay empate)
   PodiumGroupModal.tsx  Ventana con todos los memes empatados en un puesto
 context/
-  auth.ts               Contexto y hook useAuth() (usuario, foto y acciones de sesión)
-  AuthProvider.tsx      Guarda y restaura la sesión del usuario y carga su foto
+  auth.ts               Hook useAuth() (usuario, foto, rol y acciones de sesión); lee del store de sesión
+  AuthProvider.tsx      Arranca una vez la restauración de la sesión al abrir o recargar el sitio
+stores/                 Estado global con Zustand
+  authStore.ts          Store de la sesión: usuario, foto, rol, login/registro/logout y restauración
+  memeStore.ts          Store de la galería: memes, carreras elegidas, orden y reacciones del usuario
 hooks/
   useReactions.ts       Lógica de like/dislike compartida por Home, ProfilePage y PodiumPage
+  useSessionExpired.ts  Cierra la sesión y lleva al login cuando el backend responde 401 (para componentes sueltos)
 services/
   auth.ts               Llamadas de login, registro, logout y foto de la sesión
   meme.ts               Llamadas para listar, ver el podio, subir, editar y eliminar memes
   comment.ts            Llamadas para listar y crear comentarios
   reaction.ts           Llamadas para poner, quitar y consultar likes/dislikes
   user.ts               Llamadas para ver perfiles, listar memes de un usuario y editar el propio
+  report.ts             Llamadas para reportar memes y comentarios
+  admin.ts              Llamadas de moderación (solo admins)
 utils/
   image.ts              Validación de imágenes (tipo y tamaño)
   time.ts               Tiempo relativo ("Hace 5m") para los comentarios
@@ -203,6 +267,7 @@ types/                  Tipos de TypeScript
 - **Perfil propio:** además aparece **"Editar perfil"**, donde se cambian la foto (con vista previa, "Cambiar foto" y "Quitar foto"), el nombre a mostrar y la descripción. Al guardar, la foto del header se actualiza al instante. Cada publicación propia muestra los **tres puntitos** (menú con "Editar", que abre `EditMemeModal`) y el **basurero rojo** (abre `DeleteMemeModal`, que pide confirmación). Estos botones solo se renderizan en el perfil propio: `Meme` los muestra únicamente si la página le pasa `onEdit` y `onDelete`, y la galería y los perfiles ajenos no lo hacen. Editar cambia solo la descripción; para cambiar la imagen hay que eliminar el meme y subir otro.
 - **Foto de perfil en toda la app:** aparece en el header (`AuthContext` expone `avatar` y `setAvatar`), en el perfil y en cada comentario (`UserAvatar`). Sin foto se muestra la inicial del nombre (o el ícono por defecto en el header).
 - **Likes y dislikes en cualquier página:** cualquier página que muestre memes (hoy la galería, el perfil y el podio) usa el hook `useReactions` y le pasa `reaction` y `onReact` a `<Meme>` y `<MemeModal>`. La página solo decide cómo actualizar los totales en su propio estado; el resto (cargar mis reacciones, alternar, redirigir invitados, sesión expirada) lo hace el hook. Al abrir un meme, la página guarda solo su `id` para que el modal siempre muestre los datos actualizados.
+- **Reportar y moderar:** en cada meme ajeno (tarjeta y vista ampliada) y en cada comentario ajeno hay un botón de reportar que abre `ReportModal` (motivo + "¿Cuál?" si es "Otro"). Un invitado que lo toca va al login; no aparece en lo propio. Los **admins** no ven el botón de reportar: en su lugar ven un **engranaje** (siempre visible en la esquina de cada tarjeta, en la cabecera del meme ampliado y en cada comentario) con las acciones de moderación, y un botón **"Reportes"** en el header que lleva a `/admin/reportes`. Esa vista tiene tres pestañas: **Posts** y **Comentarios** (reportes agrupados por contenido, con motivos, detalle de cada reporte y las acciones descartar / eliminar / limitar comentarios, en vista "Pendientes" o "Resueltos") y **Usuarios** (reportes aceptados y pendientes por usuario). La página espera a que el backend confirme el rol antes de decidir si redirige, y no muestra la barra de carreras. Cuando los comentarios de un meme están limitados, el cuadro para escribir se reemplaza por un aviso y desaparece "Responder". Los modales de reporte y moderación usan un portal (`createPortal`) porque las tarjetas de la galería tienen `transform` y `overflow-hidden`, que recortarían un modal `fixed`.
 - **Formulario de subida:** vista previa de la imagen y validación de formato y tamaño antes de enviar. Si el backend rechaza algo, se muestra el motivo.
 
 ### Cambiar el límite de tamaño
@@ -232,4 +297,4 @@ cd backend
 npm run dev:test    # usa MONGODB_DBNAME_TEST y habilita /api/testing/reset
 ```
 
-`POST /api/testing/reset` vacía los memes, comentarios, reacciones y usuarios de la base de pruebas. Solo existe con `NODE_ENV=test`.
+`POST /api/testing/reset` vacía los memes, comentarios, reacciones, reportes, bitácora de moderación y usuarios de la base de pruebas. Solo existe con `NODE_ENV=test`.

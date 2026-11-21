@@ -28,6 +28,12 @@ export type Department = (typeof DEPARTMENTS)[number] | typeof DEFAULT_DEPARTMEN
 export const MAX_DISPLAY_NAME_LENGTH = 50;
 export const MAX_DESCRIPTION_LENGTH = 150;
 
+// Roles. Hay un solo nivel de moderación: "admin" (administrador/moderador).
+// Nadie puede elegir su rol al registrarse: se asigna a mano con
+// `npm run set-role -- <usuario> admin` (ver src/scripts/setRole.ts).
+export const ROLES = ["user", "admin"] as const;
+export type Role = (typeof ROLES)[number];
+
 export interface UserData {
   id: string;
   // Identificador único (se muestra como @username). No se puede repetir.
@@ -43,6 +49,9 @@ export interface UserData {
   email: string;
   passwordHash: string;
   department: Department;
+  // Los usuarios anteriores a los roles no tienen el campo: se tratan como
+  // "user" (Mongoose aplica el valor por defecto al leerlos).
+  role: Role;
 }
 
 const userSchema = new mongoose.Schema<UserData>({
@@ -72,6 +81,7 @@ const userSchema = new mongoose.Schema<UserData>({
     enum: [...DEPARTMENTS, DEFAULT_DEPARTMENT],
     default: DEFAULT_DEPARTMENT,
   },
+  role: { type: String, enum: [...ROLES], default: "user" },
 });
 
 // Para filtrar los memes de la galería por carrera del autor.
@@ -85,6 +95,7 @@ userSchema.set("toJSON", {
       _id?: mongoose.Types.ObjectId;
       __v?: number;
       passwordHash?: string;
+      role?: Role;
       username?: string;
       displayName?: string;
     }
@@ -93,6 +104,10 @@ userSchema.set("toJSON", {
     delete returnedObject._id;
     delete returnedObject.__v;
     delete returnedObject.passwordHash;
+    // El rol no sale en las respuestas públicas (así una lista de usuarios no
+    // revela quiénes son admin). Solo `GET /api/login/me` lo agrega, para el
+    // propio usuario.
+    delete returnedObject.role;
     // Usuarios creados antes de existir displayName: se muestra el username.
     if (!returnedObject.displayName) {
       returnedObject.displayName = returnedObject.username;

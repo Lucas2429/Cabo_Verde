@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { MemesData } from "../types/memesData";
 import type { ReactionType } from "../types/reaction";
 import ThumbUpOffAltIcon from "@mui/icons-material/ThumbUpOffAlt";
@@ -6,7 +8,10 @@ import ThumbDownOffAltIcon from "@mui/icons-material/ThumbDownOffAlt";
 import ThumbDownAltIcon from "@mui/icons-material/ThumbDownAlt";
 import ReportOutlinedIcon from "@mui/icons-material/ReportOutlined";
 import ChatBubbleOutlinedIcon from "@mui/icons-material/ChatBubbleOutlined";
+import { useAuth } from "../context/auth";
+import MemeAdminMenu, { type MemeModerationHandlers } from "./MemeAdminMenu";
 import MemeOwnerActions from "./MemeOwnerActions";
+import ReportModal from "./ReportModal";
 
 interface Prop {
   meme: MemesData;
@@ -17,16 +22,38 @@ interface Prop {
   // editar (⋮) y eliminar (basurero). Si faltan, el meme se ve como siempre.
   onEdit?: () => void;
   onDelete?: () => void;
+  // Cómo la página se entera de lo que hace un admin (eliminar, limitar
+  // comentarios). Los admins ven el engranaje de moderación en lugar del botón
+  // de reportar.
+  moderation?: MemeModerationHandlers;
 }
 
 const actionClass =
   "p-1.5 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-110 hover:bg-white/10";
 
-const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
+const Meme = ({ meme, reaction, onReact, onEdit, onDelete, moderation }: Prop) => {
+  const { username, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [reporting, setReporting] = useState(false);
+
   const isOwner = onEdit !== undefined && onDelete !== undefined;
+  // El engranaje de admin no va si ya hay botones de dueño en la misma esquina.
+  const showAdminGear = isAdmin && moderation !== undefined && !isOwner;
+  const hasTopRightButtons = isOwner || showAdminGear;
+  // Se reportan los memes ajenos. Los admins moderan con el engranaje.
+  const canReport = !isAdmin && username !== meme.author;
+
+  // Un invitado que toca "reportar" va al login (como con los likes).
+  const handleReportClick = () => {
+    if (username === null) {
+      navigate("/login");
+      return;
+    }
+    setReporting(true);
+  };
 
   return (
-    <div className="group relative overflow-hidden rounded-[22px] bg-gray-300 shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
+    <div className="group relative cursor-pointer overflow-hidden rounded-2xl bg-gray-200 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/20 dark:bg-gray-800 dark:ring-white/25">
       <img
         src={meme.image}
         alt={meme.content || "Meme"}
@@ -37,22 +64,36 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
         decoding="async"
       />
 
+      {/* Borde de hover: va por encima de la imagen para que se vea igual en
+          cualquier meme (claro, oscuro o con bordes blancos). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-inset ring-indigo-500 transition-opacity duration-300 group-hover:opacity-100"
+      />
+
       {onEdit && onDelete && (
         <MemeOwnerActions onEdit={onEdit} onDelete={onDelete} />
       )}
 
-      {/* Descripción: baja desde arriba al pasar el mouse. Si hay botones de
-          dueño arriba a la derecha, se deja espacio para que no los tape. */}
+      {/* Engranaje de moderación: siempre visible para los admins. */}
+      {showAdminGear && moderation && (
+        <div className="absolute top-2 right-2 z-10">
+          <MemeAdminMenu meme={meme} moderation={moderation} />
+        </div>
+      )}
+
+      {/* Descripción: baja desde arriba al pasar el mouse. Si hay botones arriba
+          a la derecha (dueño o admin), se deja espacio para que no los tape. */}
       <div
         className={`absolute top-0 inset-x-0 bg-linear-to-b from-black/75 to-transparent pl-4 pt-3 pb-8 text-sm font-medium text-white -translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out pointer-events-none ${
-          isOwner ? "pr-24" : "pr-4"
+          hasTopRightButtons ? "pr-24" : "pr-4"
         }`}
       >
         <p className="line-clamp-2 break-words">{meme.content}</p>
       </div>
 
       {/* Botones: suben desde abajo al pasar el mouse. */}
-      <div className="absolute bottom-3 inset-x-0 mx-auto w-fit flex items-center gap-1 rounded-full bg-gray-700/85 backdrop-blur-xs px-3 py-1.5 shadow-lg translate-y-[200%] group-hover:translate-y-0 transition-transform duration-300 ease-in-out">
+      <div className="absolute bottom-3 inset-x-0 mx-auto flex w-fit translate-y-[200%] items-center gap-1 rounded-full bg-gray-900/85 px-3 py-1.5 shadow-lg ring-1 ring-white/10 backdrop-blur-md transition-transform duration-300 ease-in-out group-hover:translate-y-0">
         {/* Si el invitado no tiene sesión, onReact lo lleva al login. */}
         <button
           type="button"
@@ -64,7 +105,7 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
             onReact("like");
           }}
           className={`${actionClass} gap-1 px-2.5 ${
-            reaction === "like" ? "text-green-400" : "text-cyan-300"
+            reaction === "like" ? "text-emerald-400" : "text-indigo-300"
           }`}
         >
           {reaction === "like" ? <ThumbUpAltIcon /> : <ThumbUpOffAltIcon />}
@@ -80,31 +121,44 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete }: Prop) => {
             onReact("dislike");
           }}
           className={`${actionClass} gap-1 px-2.5 ${
-            reaction === "dislike" ? "text-red-400" : "text-cyan-300"
+            reaction === "dislike" ? "text-rose-400" : "text-indigo-300"
           }`}
         >
           {reaction === "dislike" ? <ThumbDownAltIcon /> : <ThumbDownOffAltIcon />}
           <span className="text-xs font-semibold tabular-nums">{meme.dislikes}</span>
         </button>
-        <button
-          type="button"
-          title="Reportar"
-          aria-label="Reportar"
-          onClick={(e) => e.stopPropagation()}
-          className={`${actionClass} text-red-500`}
-        >
-          <ReportOutlinedIcon />
-        </button>
+        {canReport && (
+          <button
+            type="button"
+            title="Reportar"
+            aria-label="Reportar"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleReportClick();
+            }}
+            className={`${actionClass} text-rose-400`}
+          >
+            <ReportOutlinedIcon />
+          </button>
+        )}
         {/* Este no frena el clic: abre el meme, donde están los comentarios. */}
         <button
           type="button"
           title="Comentarios"
           aria-label="Comentarios"
-          className={`${actionClass} text-cyan-300`}
+          className={`${actionClass} text-indigo-300`}
         >
           <ChatBubbleOutlinedIcon />
         </button>
       </div>
+
+      {reporting && (
+        <ReportModal
+          target="meme"
+          memeId={meme.id}
+          onClose={() => setReporting(false)}
+        />
+      )}
     </div>
   );
 };

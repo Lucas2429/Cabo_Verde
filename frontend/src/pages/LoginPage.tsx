@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth";
 import DepartmentSelect from "../components/DepartmentSelect";
 import type { Department } from "../types/departments";
@@ -42,12 +42,19 @@ const describeError = (error: unknown, mode: Mode): string => {
   return "Ocurrió un error. Intenta nuevamente.";
 };
 
-const inputClass =
-  "w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm";
+const inputClass = "field";
 
 function LoginPage() {
   const { username: currentUser, login, register } = useAuth();
   const navigate = useNavigate();
+  // Si una ruta protegida lo mandó al login, después de entrar vuelve a ella.
+  const location = useLocation();
+  const fromLocation = (
+    location.state as { from?: { pathname: string; search?: string } } | null
+  )?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname}${fromLocation.search ?? ""}`
+    : "/";
 
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
@@ -59,7 +66,7 @@ function LoginPage() {
 
   // Si ya hay sesión no tiene sentido mostrar el login.
   if (currentUser) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={from} replace />;
   }
 
   const switchMode = (next: Mode) => {
@@ -84,7 +91,8 @@ function LoginPage() {
       } else {
         await register(username.trim(), email.trim(), password, department as Department);
       }
-      navigate("/");
+      // replace: el login no queda en el historial, así "atrás" no vuelve a él.
+      navigate(from, { replace: true });
     } catch (err) {
       setError(describeError(err, mode));
       setSubmitting(false);
@@ -92,20 +100,20 @@ function LoginPage() {
   };
 
   const tabClass = (active: boolean) =>
-    `flex-1 py-2 text-sm font-semibold rounded-full transition-colors cursor-pointer ${
-      active ? "bg-[#5a6c8a] text-white shadow" : "text-gray-600 hover:bg-gray-200"
+    `flex-1 cursor-pointer rounded-full py-2 text-sm font-semibold transition-colors ${
+      active
+        ? "bg-white text-indigo-600 shadow-sm dark:bg-gray-900 dark:text-indigo-300"
+        : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
     }`;
 
   return (
-    <div className="bg-[#52648a] min-h-screen flex flex-col items-center justify-center px-4 py-10">
-      <div className="bg-[#b4b4b4] text-center py-4 px-6 rounded-full w-full max-w-md shadow-md mb-6">
-        <h1 className="font-display text-3xl md:text-4xl tracking-wide text-black leading-none">
-          HIJOS DE LA (PUNTO).FOO
-        </h1>
-      </div>
+    <div className="app-bg items-center justify-center px-4 py-10">
+      <h1 className="mb-6 text-center font-display text-4xl leading-none tracking-wide md:text-5xl">
+        <span className="gradient-text">HIJOS DE LA (PUNTO).FOO</span>
+      </h1>
 
-      <div className="bg-white p-6 md:p-8 rounded-[30px] border-4 border-gray-800 w-full max-w-md shadow-2xl">
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1 mb-6" role="tablist">
+      <div className="surface w-full max-w-md p-6 shadow-xl shadow-indigo-500/10 md:p-8">
+        <div className="mb-6 flex gap-1 rounded-full bg-gray-100 p-1 dark:bg-gray-800" role="tablist">
           <button
             type="button"
             role="tab"
@@ -128,7 +136,7 @@ function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="username" className="field-label">
               Usuario
             </label>
             <input
@@ -145,7 +153,7 @@ function LoginPage() {
 
           {mode === "register" && (
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="field-label">
                 Correo
               </label>
               <input
@@ -161,7 +169,7 @@ function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="field-label">
               Contraseña
             </label>
             <input
@@ -178,7 +186,7 @@ function LoginPage() {
 
           {mode === "register" && (
             <div>
-              <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="department" className="field-label">
                 Departamento
               </label>
               <DepartmentSelect
@@ -193,7 +201,7 @@ function LoginPage() {
           )}
 
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               {error}
             </p>
           )}
@@ -201,7 +209,7 @@ function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-[#5a6c8a] hover:bg-[#485770] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+            className="btn-primary w-full"
           >
             {submitting
               ? "Un momento..."
@@ -212,10 +220,10 @@ function LoginPage() {
         </form>
 
         <div className="mt-6 text-center text-sm">
-          <Link to="/" className="text-indigo-600 hover:text-indigo-800 underline">
+          <Link to="/" className="font-medium text-indigo-600 underline hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
             Continuar como invitado
           </Link>
-          <p className="text-[11px] text-gray-400 mt-1">
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
             Los invitados pueden ver memes, pero no subirlos.
           </p>
         </div>

@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import reactionService from "../services/reaction";
 import { useAuth } from "../context/auth";
+import { useMemeStore } from "../stores/memeStore";
 import type { ReactionType } from "../types/reaction";
 
 interface Options {
   // Se llama con los totales actualizados que devuelve el backend. Cada página
-  // guarda sus memes en su propio estado (la galería en una lista, el perfil
+  // guarda sus memes en su propio estado (la galería en el store, el perfil
   // dentro del perfil), así que es ella la que los actualiza.
   onCountsChange: (
     memeId: string,
@@ -18,14 +19,17 @@ interface Options {
 }
 
 // Lógica de likes y dislikes compartida por todas las páginas que muestran
-// memes (galería y perfil). Devuelve:
+// memes (galería, perfil y podio). Devuelve:
 //   - myReactions: la reacción del usuario a cada meme { idDelMeme: tipo }.
+//     Vive en el store de memes, así que se comparte entre páginas.
 //   - handleReact: úsalo como onReact de <Meme> y <MemeModal>.
 export function useReactions({ onCountsChange, onSessionExpired }: Options) {
   const { username } = useAuth();
   const navigate = useNavigate();
 
-  const [myReactions, setMyReactions] = useState<Record<string, ReactionType>>({});
+  const myReactions = useMemeStore((state) => state.myReactions);
+  const setMyReactions = useMemeStore((state) => state.setMyReactions);
+  const setMyReaction = useMemeStore((state) => state.setMyReaction);
   // Memes con una reacción en curso: evita doble clic mientras se espera al backend.
   const reactingRef = useRef<Set<string>>(new Set());
 
@@ -45,12 +49,12 @@ export function useReactions({ onCountsChange, onSessionExpired }: Options) {
       })
       .catch(() => {
         // Sin las reacciones propias solo se pierde el resaltado de los botones;
-        // si la sesión expiró, AuthProvider ya se encarga de cerrarla.
+        // si la sesión expiró, la sesión se cierra al primer 401 de otra acción.
       });
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [username, setMyReactions]);
 
   // Like / dislike. Tocar la misma reacción otra vez la quita; tocar la otra la
   // reemplaza. Un invitado va al login (y el backend igual responde 401).
@@ -70,15 +74,7 @@ export function useReactions({ onCountsChange, onSessionExpired }: Options) {
 
       // Se usan los totales que devuelve el backend, no un cálculo local.
       onCountsChange(memeId, { likes: result.likes, dislikes: result.dislikes });
-      setMyReactions((prev) => {
-        const next = { ...prev };
-        if (result.type) {
-          next[memeId] = result.type;
-        } else {
-          delete next[memeId];
-        }
-        return next;
-      });
+      setMyReaction(memeId, result.type);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 401) {
         await onSessionExpired();

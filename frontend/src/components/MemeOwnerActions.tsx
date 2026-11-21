@@ -45,7 +45,7 @@ const MemeOwnerActions = ({ onEdit, onDelete }: Props) => {
       className="absolute top-2 right-2 z-10"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center gap-0.5 rounded-full bg-gray-700/85 backdrop-blur-xs px-1.5 py-1 shadow-lg">
+      <div className="flex items-center gap-0.5 rounded-full bg-gray-900/85 px-1.5 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur-md">
         <button
           type="button"
           title="Más opciones"
@@ -65,7 +65,7 @@ const MemeOwnerActions = ({ onEdit, onDelete }: Props) => {
             setMenuOpen(false);
             onDelete();
           }}
-          className={`${iconButtonClass} text-red-500`}
+          className={`${iconButtonClass} text-rose-400`}
         >
           <DeleteOutlinedIcon fontSize="small" />
         </button>
@@ -74,7 +74,7 @@ const MemeOwnerActions = ({ onEdit, onDelete }: Props) => {
       {menuOpen && (
         <div
           role="menu"
-          className="absolute right-0 mt-1 min-w-36 overflow-hidden rounded-xl bg-white py-1 text-sm shadow-xl ring-1 ring-black/10"
+          className="absolute right-0 mt-1 min-w-36 overflow-hidden rounded-xl bg-white py-1 text-sm shadow-xl ring-1 ring-black/10 dark:bg-gray-900 dark:ring-white/10"
         >
           <button
             type="button"
@@ -83,7 +83,7 @@ const MemeOwnerActions = ({ onEdit, onDelete }: Props) => {
               setMenuOpen(false);
               onEdit();
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-gray-800 hover:bg-gray-100 cursor-pointer"
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left font-medium text-gray-800 hover:bg-indigo-50 hover:text-indigo-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-indigo-300"
           >
             <EditOutlinedIcon fontSize="small" />
             Editar

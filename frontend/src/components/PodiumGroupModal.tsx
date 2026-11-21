@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import Meme from "./Meme";
+import type { MemeModerationHandlers } from "./MemeAdminMenu";
 import type { PodiumPosition } from "../types/podium";
 import type { ReactionType } from "../types/reaction";
 
@@ -15,6 +16,8 @@ interface Props {
   // Escape cierra la ventana, salvo que haya un meme abierto encima (que es lo
   // que debería cerrarse primero).
   closeOnEscape: boolean;
+  // Lo que hace un admin desde el engranaje de cada tarjeta.
+  moderation?: MemeModerationHandlers;
 }
 
 const ORDINALS = ["Primer", "Segundo", "Tercer"];
@@ -28,6 +31,7 @@ const PodiumGroupModal = ({
   onSelectMeme,
   onClose,
   closeOnEscape,
+  moderation,
 }: Props) => {
   useEffect(() => {
     if (!closeOnEscape) return;
@@ -89,6 +93,7 @@ const PodiumGroupModal = ({
                   meme={meme}
                   reaction={myReactions[meme.id] ?? null}
                   onReact={(type) => onReact(meme.id, type)}
+                  moderation={moderation}
                 />
               </div>
             ))}

@@ -7,12 +7,14 @@ import ReactionModel, {
   type ReactionType,
 } from "../models/reaction";
 import User, { DEPARTMENTS } from "../models/user";
+import ReportModel from "../models/report";
 import { withUser } from "../utils/middleware";
 import { buildPodium } from "../utils/podium";
 import { removeImage, saveImage, uploadImage } from "../utils/upload";
 import { getCurrentWeek } from "../utils/week";
 import commentsRouter from "./comments";
 import reactionsRouter from "./reactions";
+import { memeReportRouter } from "./reports";
 import { getReactionCounts } from "../models/reaction";
 
 const MAX_CONTENT_LENGTH = 300;
@@ -27,6 +29,9 @@ router.use("/:id/comments", commentsRouter);
 
 // Like / dislike de un meme: /api/memes/:id/reaction
 router.use("/:id/reaction", reactionsRouter);
+
+// Reportar un meme: /api/memes/:id/report
+router.use("/:id/report", memeReportRouter);
 
 // Público: cualquiera (incluidos invitados) puede ver los memes, con sus
 // totales de likes y dislikes. Parámetros opcionales (query string):
@@ -209,8 +214,10 @@ router.patch("/:id", withUser, async (request, response) => {
 });
 
 // Solo el AUTOR del meme puede eliminarlo. Junto con el meme se borran sus
-// comentarios, sus reacciones y el archivo de la imagen, para no dejar datos
-// huérfanos. Responde 404 si no existe y 403 si es de otro usuario.
+// comentarios, sus reacciones, sus reportes (ya no hay nada que revisar) y el
+// archivo de la imagen, para no dejar datos huérfanos. Responde 404 si no existe
+// y 403 si es de otro usuario. (La eliminación por moderación es otra cosa: ver
+// controllers/admin.ts, que conserva todo como evidencia.)
 router.delete("/:id", withUser, async (request, response) => {
   const meme = await MemeModel.findById(request.params.id);
   if (!meme) {
@@ -226,6 +233,7 @@ router.delete("/:id", withUser, async (request, response) => {
   await Promise.all([
     CommentModel.deleteMany({ meme: meme._id }),
     ReactionModel.deleteMany({ meme: meme._id }),
+    ReportModel.deleteMany({ meme: meme._id }),
     removeImage(meme.image),
   ]);
 
