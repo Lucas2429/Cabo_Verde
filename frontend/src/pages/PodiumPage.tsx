@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import MemeModal from "../components/MemeModal";
+import type { MemeModerationHandlers } from "../components/MemeAdminMenu";
 import PodiumGroupModal from "../components/PodiumGroupModal";
 import PodiumStack from "../components/PodiumStack";
 import memeService from "../services/meme";
@@ -124,6 +125,48 @@ function PodiumPage() {
     onSessionExpired: handleSessionExpired,
   });
 
+  // Lo que hace un admin desde el engranaje. Si elimina un meme, el podio se
+  // vuelve a pedir al cerrar las ventanas (puede cambiar quién ocupa cada
+  // puesto), igual que cuando alguien reacciona.
+  const moderation: MemeModerationHandlers = {
+    onRemoved: (memeId) => {
+      needsRefresh.current = true;
+      setState((prev) =>
+        prev.status === "ok"
+          ? {
+              status: "ok",
+              data: {
+                ...prev.data,
+                podium: prev.data.podium
+                  .map((group) => ({
+                    ...group,
+                    memes: group.memes.filter((meme) => meme.id !== memeId),
+                  }))
+                  .filter((group) => group.memes.length > 0),
+              },
+            }
+          : prev
+      );
+    },
+    onUpdated: (memeId, patch) =>
+      setState((prev) =>
+        prev.status === "ok"
+          ? {
+              status: "ok",
+              data: {
+                ...prev.data,
+                podium: prev.data.podium.map((group) => ({
+                  ...group,
+                  memes: group.memes.map((meme) =>
+                    meme.id === memeId ? { ...meme, ...patch } : meme
+                  ),
+                })),
+              },
+            }
+          : prev
+      ),
+  };
+
   // Un puesto con un solo meme abre el meme directo; con empate, abre la
   // ventana con todos.
   const handleOpen = (group: PodiumPosition) => {
@@ -203,6 +246,7 @@ function PodiumPage() {
             onSelectMeme={setSelectedMemeId}
             onClose={() => setOpenPosition(null)}
             closeOnEscape={selectedMemeId === null}
+            moderation={moderation}
           />
         )}
 
@@ -215,6 +259,7 @@ function PodiumPage() {
           }}
           onClose={() => setSelectedMemeId(null)}
           onSessionExpired={handleSessionExpired}
+          moderation={moderation}
         />
       </div>
 

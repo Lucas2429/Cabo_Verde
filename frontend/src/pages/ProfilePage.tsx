@@ -7,6 +7,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import Header from "../components/Header";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
+import type { MemeModerationHandlers } from "../components/MemeAdminMenu";
 import EditMemeModal from "../components/EditMemeModal";
 import DeleteMemeModal from "../components/DeleteMemeModal";
 import userService, { type UpdatedProfile } from "../services/user";
@@ -423,6 +424,17 @@ function ProfileView({ username }: { username: string }) {
       });
   };
 
+  // Lo que hace un admin desde el engranaje: un meme eliminado por moderación
+  // se trata igual que uno borrado por su autor (sale de las listas, baja el
+  // contador y se rellena el perfil); limitar comentarios solo cambia el meme.
+  const moderation: MemeModerationHandlers = {
+    onRemoved: handleMemeDeleted,
+    onUpdated: (memeId, patch) =>
+      updateMemes((memes) =>
+        memes.map((meme) => (meme.id === memeId ? { ...meme, ...patch } : meme))
+      ),
+  };
+
   const renderContent = () => {
     if (state.status === "loading") {
       return <p className="text-center text-gray-500 dark:text-gray-400">Cargando perfil...</p>;
@@ -584,6 +596,7 @@ function ProfileView({ username }: { username: string }) {
                       // basurero (eliminar).
                       onEdit={isOwnProfile ? () => setEditingMemeId(meme.id) : undefined}
                       onDelete={isOwnProfile ? () => setDeletingMemeId(meme.id) : undefined}
+                      moderation={moderation}
                     />
                   </div>
                 ))}
@@ -612,6 +625,7 @@ function ProfileView({ username }: { username: string }) {
           }}
           onClose={() => setSelectedMemeId(null)}
           onSessionExpired={handleSessionExpired}
+          moderation={moderation}
         />
 
         {memeToEdit && (

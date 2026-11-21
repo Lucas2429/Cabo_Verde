@@ -10,6 +10,7 @@ import { UPLOADS_DIR, UPLOADS_URL_PREFIX } from "./utils/upload";
 import memesRouter from "./controllers/memes";
 import usersRouter from "./controllers/users";
 import loginRouter from "./controllers/login";
+import adminRouter from "./controllers/admin";
 // LAB 8 - P3: router de utilidades para pruebas (reinicio de la BD).
 import testingRouter from "./controllers/testing";
 
@@ -50,6 +51,8 @@ app.use(middleware.requestLogger);
 app.use("/api/memes", memesRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/login", loginRouter);
+// Moderación: reportes y acciones de los admins. Todo el router exige rol admin.
+app.use("/api/admin", adminRouter);
 
 // LAB 8 - P3: el endpoint de reinicio SOLO existe en el entorno de pruebas.
 // Se usa NODE_ENV === "test" (y no "development") porque en ese entorno el

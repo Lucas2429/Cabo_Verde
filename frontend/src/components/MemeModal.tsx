@@ -1,13 +1,18 @@
 //import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import type { MemesData } from "../types/memesData";
 import type { ReactionType } from "../types/reaction";
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
 import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
 import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
+import ReportOutlinedIcon from '@mui/icons-material/ReportOutlined';
 import CloseIcon from '@mui/icons-material/Close';
+import { useAuth } from "../context/auth";
 import Comments from "./Comments";
+import MemeAdminMenu, { type MemeModerationHandlers } from "./MemeAdminMenu";
+import ReportModal from "./ReportModal";
 
 interface MemeModalProps {
   meme: MemesData | null;
@@ -17,6 +22,10 @@ interface MemeModalProps {
   onClose: () => void;
   // Se llama si el backend responde 401 al comentar (la sesión expiró).
   onSessionExpired: () => void;
+  // Cómo la página se entera de lo que hace un admin (eliminar, limitar
+  // comentarios). Los admins ven el engranaje de moderación en lugar del botón
+  // de reportar.
+  moderation?: MemeModerationHandlers;
 }
 
 const MemeModal = ({
@@ -25,8 +34,25 @@ const MemeModal = ({
   onReact,
   onClose,
   onSessionExpired,
+  moderation,
 }: MemeModalProps) => {
+  const { username, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [reporting, setReporting] = useState(false);
+
   if (!meme) return null;
+
+  // Se reportan los memes ajenos. Los admins moderan con el engranaje.
+  const canReport = !isAdmin && username !== meme.author;
+
+  // Un invitado que toca "reportar" va al login (como con los likes).
+  const handleReportClick = () => {
+    if (username === null) {
+      navigate("/login");
+      return;
+    }
+    setReporting(true);
+  };
 
   return (
     <div 
@@ -88,6 +114,20 @@ const MemeModal = ({
               <span className="text-sm font-medium">No me gusta</span>
               <span className="text-sm font-semibold tabular-nums">{meme.dislikes}</span>
             </button>
+            {canReport && (
+              <>
+                <div className="h-6 w-[1px] bg-gray-700"></div>
+                <button
+                  type="button"
+                  title="Reportar publicación"
+                  onClick={handleReportClick}
+                  className="flex items-center gap-2 text-rose-400 hover:text-rose-300 transition-colors py-1.5 px-4 rounded-full hover:bg-white/10 cursor-pointer"
+                >
+                  <ReportOutlinedIcon />
+                  <span className="text-sm font-medium">Reportar</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
         <div className="w-full md:w-96 flex flex-col bg-gray-50 dark:bg-gray-900 h-1/2 md:h-full border-l border-gray-200 dark:border-gray-800">
@@ -100,9 +140,15 @@ const MemeModal = ({
               >
                 {meme.author}
               </Link>
-              <span className="text-xs text-gray-400">
-                {new Date(meme.createdAt).toLocaleDateString()}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">
+                  {new Date(meme.createdAt).toLocaleDateString()}
+                </span>
+                {/* Engranaje de moderación: solo para admins. */}
+                {isAdmin && moderation && (
+                  <MemeAdminMenu meme={meme} moderation={moderation} variant="plain" />
+                )}
+              </div>
             </div>
           </div>
 
@@ -111,12 +157,21 @@ const MemeModal = ({
           <Comments
             key={meme.id}
             memeId={meme.id}
+            locked={meme.commentsLocked}
             onSessionExpired={onSessionExpired}
           />
 
         </div>
 
       </div>
+
+      {reporting && (
+        <ReportModal
+          target="meme"
+          memeId={meme.id}
+          onClose={() => setReporting(false)}
+        />
+      )}
     </div>
   );
 };

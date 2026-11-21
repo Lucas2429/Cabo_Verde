@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import config from "./config";
 import logger from "./logger";
+import User from "../models/user";
 import { MAX_IMAGE_SIZE } from "./upload";
 
 const requestLogger = (
@@ -89,6 +90,30 @@ export const withUser = async (
     res.status(401).json({ error: "invalid token" });
   }
 };
+
+// Solo admins. Se usa DESPUÉS de withUser (que valida la sesión y deja el id en
+// req.userId); `withAdmin` ya trae ambos en orden. El rol se lee de la base de
+// datos en cada petición y no del token, así que quitarle el rol a alguien
+// (npm run set-role) surte efecto al instante, aunque su sesión siga vigente.
+// Responde 403 si el usuario no es admin.
+export const requireAdmin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const user = await User.findById(req.userId, "role");
+    if (!user || user.role !== "admin") {
+      res.status(403).json({ error: "admin access required" });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const withAdmin = [withUser, requireAdmin];
 
 export const withOptionalUser = async (
   req: Request,

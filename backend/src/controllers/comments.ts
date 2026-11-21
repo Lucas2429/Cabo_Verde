@@ -2,14 +2,19 @@ import express from "express";
 import mongoose from "mongoose";
 import CommentModel, { withAuthorAvatars } from "../models/comment";
 import MemeModel from "../models/memes";
+import ReportModel from "../models/report";
 import User from "../models/user";
 import { withUser } from "../utils/middleware";
+import { commentReportRouter } from "./reports";
 
 const MAX_CONTENT_LENGTH = 300;
 
 // Se monta en /api/memes/:id/comments (ver controllers/memes.ts). mergeParams
 // hace que aquí también esté disponible el :id del meme.
 const router = express.Router({ mergeParams: true });
+
+// Reportar un comentario: /api/memes/:id/comments/:commentId/report
+router.use("/:commentId/report", commentReportRouter);
 
 // Público: cualquiera (incluidos invitados) puede leer los comentarios.
 // Del más nuevo al más viejo, igual que la galería.
@@ -57,9 +62,15 @@ router.post("/", withUser, async (request, response) => {
     return;
   }
 
-  const memeExists = await MemeModel.exists({ _id: request.params.id });
-  if (!memeExists) {
+  const meme = await MemeModel.findById(request.params.id, "commentsLocked");
+  if (!meme) {
     response.status(404).json({ error: "meme not found" });
+    return;
+  }
+  // Un admin puede limitar los comentarios de un meme (como en Instagram): se
+  // siguen viendo, pero no se puede comentar ni responder.
+  if (meme.commentsLocked) {
+    response.status(403).json({ error: "comments are limited on this meme" });
     return;
   }
 
@@ -82,6 +93,7 @@ router.post("/", withUser, async (request, response) => {
       _id: rawParent,
       meme: request.params.id,
       deletedAt: null,
+      removedAt: null,
     });
     if (!parentExists) {
       response.status(404).json({ error: "parent comment not found" });
@@ -149,7 +161,7 @@ router.patch("/:commentId", withUser, async (request, response) => {
     return;
   }
 
-  if (comment.deletedAt) {
+  if (comment.deletedAt || comment.removedAt) {
     response.status(409).json({ error: "cannot edit a deleted comment", });
     return;
   }
@@ -195,7 +207,7 @@ router.delete("/:commentId", withUser, async (request, response) => {
     return;
   }
 
-  if (comment.deletedAt) {
+  if (comment.deletedAt || comment.removedAt) {
     response.status(409).json({ error: "comment already deleted", });
     return;
   }
@@ -216,6 +228,8 @@ router.delete("/:commentId", withUser, async (request, response) => {
     comment.deletedAt = new Date();
 
     const deletedComment = await comment.save();
+    // Su texto ya no existe: los reportes de este comentario quedan sin objeto.
+    await ReportModel.deleteMany({ comment: comment._id });
 
     response.status(200).json({
       deletionType: "soft",
@@ -224,7 +238,8 @@ router.delete("/:commentId", withUser, async (request, response) => {
     return;
   }
 
-  // Sin respuestas: eliminar físicamente el documento.
+  // Sin respuestas: eliminar físicamente el documento (y sus reportes).
+  await ReportModel.deleteMany({ comment: comment._id });
   await comment.deleteOne();
 
   response.status(200).json({

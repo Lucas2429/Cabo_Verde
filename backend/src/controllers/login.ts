@@ -48,7 +48,10 @@ router.get("/me", withUser, async (request, response) => {
     response.status(404).json({ error: "user not found" });
     return;
   }
-  response.json(user);
+  // El rol sale solo aquí (y solo para el propio usuario): el frontend lo usa
+  // para mostrar u ocultar las opciones de administración. Ocultarlas es solo
+  // comodidad; cada ruta de /api/admin vuelve a comprobar el rol en el backend.
+  response.json({ ...user.toJSON(), role: user.role });
 });
 
 router.post("/logout", (request, response) => {

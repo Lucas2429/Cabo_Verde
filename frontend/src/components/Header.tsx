@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LogoutIcon from "@mui/icons-material/Logout";
+import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined";
 import { useAuth } from "../context/auth";
 import UserAvatar from "./UserAvatar";
 
@@ -14,7 +15,7 @@ interface Props {
 // Barra superior compartida por todas las páginas. Queda fija arriba con un
 // efecto de vidrio para que el contenido pase por detrás al hacer scroll.
 function Header({ onLogout }: Props) {
-  const { username, avatar, logout } = useAuth();
+  const { username, avatar, isAdmin, logout } = useAuth();
   const handleLogout = onLogout ?? logout;
   const profilePath = username ? `/u/${encodeURIComponent(username)}` : "/login";
 
@@ -29,6 +30,19 @@ function Header({ onLogout }: Props) {
       </h1>
 
       <div className="flex items-center gap-2 justify-self-end sm:gap-3">
+        {/* Solo los admins: lleva a la vista de reportes. Esconderlo es comodidad;
+            el backend vuelve a exigir el rol en cada ruta de /api/admin. */}
+        {isAdmin && (
+          <Link
+            to="/admin/reportes"
+            title="Reportes"
+            aria-label="Reportes"
+            className="flex h-10 items-center gap-1.5 rounded-full bg-rose-100 px-3 text-2xl text-rose-600 transition-transform hover:scale-105 dark:bg-rose-500/15 dark:text-rose-300 sm:h-11"
+          >
+            <ReportProblemOutlinedIcon fontSize="inherit" />
+            <span className="hidden text-sm font-semibold lg:inline">Reportes</span>
+          </Link>
+        )}
         <Link
           to="/podio"
           title="Podio de la semana"

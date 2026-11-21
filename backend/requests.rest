@@ -212,6 +212,88 @@ Content-Type: application/json
 }
 
 
+### Reportar un meme AJENO (requiere sesión)
+# reason: hate | fraud | fake_news | harassment | other. Con "other" hay que explicar
+# en `details` (máx. 200 caracteres). Errores: 403 si el meme es tuyo, 409 si ya lo
+# reportaste, 429 si mandaste más de 20 reportes en la última hora.
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/report
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "reason": "other",
+  "details": "Es una estafa de venta de entradas"
+}
+
+### Reportar un comentario AJENO (requiere sesión)
+POST http://localhost:3001/api/memes/<ID_DEL_MEME>/comments/<ID_DEL_COMENTARIO>/report
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "reason": "harassment"
+}
+
+### --- ADMINISTRACIÓN ---------------------------------------------------------
+# Todo /api/admin exige sesión de un usuario con rol admin (si no -> 403). Para
+# crear un admin: npm run set-role -- <usuario> admin
+
+### Posts reportados, agrupados (status: pending por defecto, o resolved)
+GET http://localhost:3001/api/admin/reports/memes?status=pending
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Comentarios reportados (incluye el texto original aunque ya esté eliminado)
+GET http://localhost:3001/api/admin/reports/comments?status=pending
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Usuarios con reportes pendientes y aceptados
+GET http://localhost:3001/api/admin/reports/users
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Eliminar un post por moderación (no se borra de la BD; queda con el motivo)
+POST http://localhost:3001/api/admin/memes/<ID_DEL_MEME>/remove
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "reason": "Discurso de odio"
+}
+
+### Limitar los comentarios de un post (locked: false los vuelve a permitir)
+PUT http://localhost:3001/api/admin/memes/<ID_DEL_MEME>/comments-lock
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "locked": true
+}
+
+### Descartar los reportes pendientes de un post
+POST http://localhost:3001/api/admin/memes/<ID_DEL_MEME>/dismiss-reports
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Eliminar un comentario por moderación (queda como "Comentario eliminado")
+POST http://localhost:3001/api/admin/comments/<ID_DEL_COMENTARIO>/remove
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "reason": "Acoso"
+}
+
+### Descartar los reportes pendientes de un comentario
+POST http://localhost:3001/api/admin/comments/<ID_DEL_COMENTARIO>/dismiss-reports
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Bitácora de moderación (últimas 100 acciones)
+GET http://localhost:3001/api/admin/log
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Un usuario normal intenta entrar a /api/admin -> debe responder 403
+# (usa la sesión de un usuario sin rol admin)
+GET http://localhost:3001/api/admin/reports/users
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
 ### Eliminar lógicamente un comentario propio
 DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>/comments/<ID_DEL_COMENTARIO>
 X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}

@@ -6,6 +6,7 @@ import Header from "../components/Header";
 import CategoryBar from "../components/CategoryBar";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
+import type { MemeModerationHandlers } from "../components/MemeAdminMenu";
 import UploadMemeModal from "../components/UploadMemeModal";
 import type { Department } from "../types/departments";
 import type { MemeOrder, MemesData } from "../types/memesData";
@@ -118,6 +119,17 @@ function Home() {
     onSessionExpired: handleSessionExpired,
   });
 
+  // Lo que hace un admin desde el engranaje (eliminar un meme o limitar sus
+  // comentarios) se refleja en la lista sin volver a pedirla.
+  const moderation: MemeModerationHandlers = {
+    onRemoved: (memeId) =>
+      setMemes((prev) => prev.filter((meme) => meme.id !== memeId)),
+    onUpdated: (memeId, patch) =>
+      setMemes((prev) =>
+        prev.map((meme) => (meme.id === memeId ? { ...meme, ...patch } : meme))
+      ),
+  };
+
   // Activa o desactiva una carrera (se pueden combinar varias).
   const handleToggleDepartment = (department: Department) => {
     setSelectedDepartments((prev) =>
@@ -202,6 +214,7 @@ function Home() {
                   meme={meme}
                   reaction={myReactions[meme.id] ?? null}
                   onReact={(type) => handleReact(meme.id, type)}
+                  moderation={moderation}
                 />
               </div>
             ))}
@@ -216,6 +229,7 @@ function Home() {
           }}
           onClose={() => setSelectedMemeId(null)}
           onSessionExpired={handleSessionExpired}
+          moderation={moderation}
         />
 
         {canUpload && modalPostear && (

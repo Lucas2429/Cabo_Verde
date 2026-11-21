@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Session } from "../types/auth";
+import type { Role, Session } from "../types/auth";
 import type { Department } from "../types/departments";
 
 const baseUrl = "/api";
@@ -71,19 +71,25 @@ const validate = async (session: Session): Promise<boolean> => {
   }
 };
 
-// Foto de perfil del usuario con sesión (/api/login/me devuelve el usuario
-// completo). Devuelve null si no tiene foto o si la consulta falla: sin foto
-// solo se muestra el ícono por defecto.
-const fetchAvatar = async (session: Session): Promise<string | null> => {
+// Foto de perfil y rol del usuario con sesión (/api/login/me devuelve el
+// usuario completo). Si la consulta falla se asume "sin foto" y rol "user": lo
+// único que se pierde es el ícono por defecto y las opciones de administración
+// (que el backend igual exige con 403, así que esconderlas es solo comodidad).
+export interface Me {
+  avatar: string | null;
+  role: Role;
+}
+
+const fetchMe = async (session: Session): Promise<Me> => {
   try {
-    const { data } = await axios.get<{ avatar?: string | null }>(
+    const { data } = await axios.get<{ avatar?: string | null; role?: Role }>(
       `${baseUrl}/login/me`,
       { headers: { "X-CSRF-Token": session.csrf } }
     );
-    return data.avatar ?? null;
+    return { avatar: data.avatar ?? null, role: data.role ?? "user" };
   } catch {
-    return null;
+    return { avatar: null, role: "user" };
   }
 };
 
-export default { login, register, logout, validate, fetchAvatar };
+export default { login, register, logout, validate, fetchMe };
