@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Link, Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Header from "../components/Header";
 import ModerationReasonModal from "../components/ModerationReasonModal";
 import UserAvatar from "../components/UserAvatar";
-import { useAuth } from "../context/auth";
 import { useSessionExpired } from "../hooks/useSessionExpired";
 import adminService from "../services/admin";
 import {
@@ -671,25 +670,10 @@ function AdminReportsView() {
   );
 }
 
-// Solo los admins pueden entrar. Esto es comodidad: aunque alguien llegara a
-// esta URL, el backend responde 403 a todas las rutas de /api/admin.
+// Solo los admins pueden entrar: lo exigen <ProtectedRoute> y <AdminRoute> en
+// App.tsx. Esto es comodidad: aunque alguien llegara a esta URL, el backend
+// responde 403 a todas las rutas de /api/admin.
 function AdminReportsPage() {
-  const { username, role } = useAuth();
-
-  if (username === null) return <Navigate to="/login" replace />;
-
-  // Mientras el backend confirma el rol no se redirige: un admin que recarga
-  // esta página no debe terminar en la galería por error.
-  if (role === null) {
-    return (
-      <div className="app-bg">
-        <p className="m-auto text-gray-500 dark:text-gray-400">Cargando...</p>
-      </div>
-    );
-  }
-
-  if (role !== "admin") return <Navigate to="/" replace />;
-
   return <AdminReportsView />;
 }
 

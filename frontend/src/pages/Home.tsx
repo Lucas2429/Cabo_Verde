@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import Header from "../components/Header";
@@ -8,11 +9,9 @@ import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import type { MemeModerationHandlers } from "../components/MemeAdminMenu";
 import UploadMemeModal from "../components/UploadMemeModal";
-import type { Department } from "../types/departments";
-import type { MemeOrder, MemesData } from "../types/memesData";
-import memeService from "../services/meme";
 import { useReactions } from "../hooks/useReactions";
 import { useAuth } from "../context/auth";
+import { useMemeStore } from "../stores/memeStore";
 
 // Alturas de las tarjetas "fantasma" que se ven mientras cargan los memes.
 const SKELETON_HEIGHTS = [
@@ -30,8 +29,26 @@ function Home() {
   const { username, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [memes, setMemes] = useState<MemesData[]>([]);
-  const [loadError, setLoadError] = useState<boolean>(false);
+  // La lista de memes, las carreras elegidas y el orden viven en el store de
+  // Zustand (stores/memeStore.ts), no en esta página: así se conservan al ir a
+  // otra vista y volver con el botón "atrás".
+  const { memes, loading, loadError, selectedDepartments, order } = useMemeStore(
+    useShallow((state) => ({
+      memes: state.memes,
+      loading: state.loading,
+      loadError: state.loadError,
+      selectedDepartments: state.selectedDepartments,
+      order: state.order,
+    }))
+  );
+  const fetchMemes = useMemeStore((state) => state.fetchMemes);
+  const toggleDepartment = useMemeStore((state) => state.toggleDepartment);
+  const toggleOrder = useMemeStore((state) => state.toggleOrder);
+  const updateCounts = useMemeStore((state) => state.updateCounts);
+  const patchMeme = useMemeStore((state) => state.patchMeme);
+  const removeMeme = useMemeStore((state) => state.removeMeme);
+
+  // Estado propio de esta página (solo lo usa ella): sigue en useState.
   const [modalPostear, setModalPostear] = useState<boolean>(false);
   // Se guarda solo el id (y no una copia del meme) para que el modal siempre
   // muestre los likes y dislikes actualizados de la lista.
@@ -39,40 +56,14 @@ function Home() {
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
   // La barra fija de arriba (header + filtros) gana fondo al bajar.
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
-  // true hasta que llega la primera respuesta del backend (muestra el esqueleto).
-  const [loading, setLoading] = useState<boolean>(true);
-  // Carreras seleccionadas en las categorías (vacío = todas) y orden de la
-  // galería. El backend filtra y ordena; cada cambio vuelve a pedir la lista.
-  const [selectedDepartments, setSelectedDepartments] = useState<Department[]>([]);
-  const [order, setOrder] = useState<MemeOrder>("newest");
-  // Se incrementa para volver a pedir la lista (por ejemplo, tras subir un meme).
-  const [reloadKey, setReloadKey] = useState<number>(0);
 
   const selectedMeme = memes.find((meme) => meme.id === selectedMemeId) ?? null;
 
+  // Se pide la lista al abrir la página y cada vez que cambia el filtro o el
+  // orden. El store descarta las respuestas viejas si llegan fuera de orden.
   useEffect(() => {
-    // Si el filtro cambia antes de que llegue una respuesta, la anterior se
-    // descarta para que no pise a la más reciente.
-    let cancelled = false;
-
-    memeService
-      .getAll({ departments: selectedDepartments, order })
-      .then((data) => {
-        if (cancelled) return;
-        setMemes(data);
-        setLoadError(false);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLoadError(true);
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedDepartments, order, reloadKey]);
+    void fetchMemes();
+  }, [fetchMemes, selectedDepartments, order]);
 
   // El botón de "subir al inicio" aparece solo cuando ya se bajó un poco.
   useEffect(() => {
@@ -109,34 +100,18 @@ function Home() {
     navigate("/login");
   };
 
-  // Like / dislike (lógica compartida con el perfil). Aquí solo se indica cómo
-  // actualizar los totales dentro de la lista de memes.
+  // Like / dislike (lógica compartida con el perfil y el podio). Aquí solo se
+  // indica cómo actualizar los totales dentro de la lista de memes.
   const { myReactions, handleReact } = useReactions({
-    onCountsChange: (memeId, counts) =>
-      setMemes((prev) =>
-        prev.map((meme) => (meme.id === memeId ? { ...meme, ...counts } : meme))
-      ),
+    onCountsChange: updateCounts,
     onSessionExpired: handleSessionExpired,
   });
 
   // Lo que hace un admin desde el engranaje (eliminar un meme o limitar sus
   // comentarios) se refleja en la lista sin volver a pedirla.
   const moderation: MemeModerationHandlers = {
-    onRemoved: (memeId) =>
-      setMemes((prev) => prev.filter((meme) => meme.id !== memeId)),
-    onUpdated: (memeId, patch) =>
-      setMemes((prev) =>
-        prev.map((meme) => (meme.id === memeId ? { ...meme, ...patch } : meme))
-      ),
-  };
-
-  // Activa o desactiva una carrera (se pueden combinar varias).
-  const handleToggleDepartment = (department: Department) => {
-    setSelectedDepartments((prev) =>
-      prev.includes(department)
-        ? prev.filter((item) => item !== department)
-        : [...prev, department]
-    );
+    onRemoved: removeMeme,
+    onUpdated: patchMeme,
   };
 
   // Un invitado que toca "+" va al login en vez de ver el formulario.
@@ -165,11 +140,9 @@ function Home() {
           <div className="mt-3">
             <CategoryBar
               selected={selectedDepartments}
-              onToggle={handleToggleDepartment}
+              onToggle={toggleDepartment}
               order={order}
-              onToggleOrder={() =>
-                setOrder((prev) => (prev === "newest" ? "oldest" : "newest"))
-              }
+              onToggleOrder={toggleOrder}
             />
           </div>
         </div>
@@ -235,7 +208,7 @@ function Home() {
         {canUpload && modalPostear && (
           <UploadMemeModal
             onClose={() => setModalPostear(false)}
-            onCreated={() => setReloadKey((key) => key + 1)}
+            onCreated={() => void fetchMemes()}
             onSessionExpired={handleSessionExpired}
           />
         )}

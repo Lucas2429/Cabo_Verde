@@ -219,6 +219,7 @@ pages/
   AdminReportsPage.tsx  Vista de reportes con pestañas Posts / Comentarios / Usuarios (ruta /admin/reportes, solo admins)
 components/
   Header.tsx            Barra superior compartida (podio, botón "Reportes" para admins, perfil y foto del usuario)
+  RouteGuards.tsx       ProtectedRoute (exige sesión) y AdminRoute (exige rol admin) para las rutas protegidas
   CategoryBar.tsx       Categorías por carrera y botón "Filtrar" (orden) de la galería
   Meme.tsx              Tarjeta de un meme (con botones de editar/eliminar si es propio)
   MemeModal.tsx         Vista ampliada de un meme (imagen completa)
@@ -235,8 +236,11 @@ components/
   PodiumStack.tsx       Un puesto del podio (pila de tarjetas si hay empate)
   PodiumGroupModal.tsx  Ventana con todos los memes empatados en un puesto
 context/
-  auth.ts               Contexto y hook useAuth() (usuario, foto y acciones de sesión)
-  AuthProvider.tsx      Guarda y restaura la sesión del usuario y carga su foto
+  auth.ts               Hook useAuth() (usuario, foto, rol y acciones de sesión); lee del store de sesión
+  AuthProvider.tsx      Arranca una vez la restauración de la sesión al abrir o recargar el sitio
+stores/                 Estado global con Zustand
+  authStore.ts          Store de la sesión: usuario, foto, rol, login/registro/logout y restauración
+  memeStore.ts          Store de la galería: memes, carreras elegidas, orden y reacciones del usuario
 hooks/
   useReactions.ts       Lógica de like/dislike compartida por Home, ProfilePage y PodiumPage
   useSessionExpired.ts  Cierra la sesión y lleva al login cuando el backend responde 401 (para componentes sueltos)

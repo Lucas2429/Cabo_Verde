@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth";
 import DepartmentSelect from "../components/DepartmentSelect";
 import type { Department } from "../types/departments";
@@ -47,6 +47,14 @@ const inputClass = "field";
 function LoginPage() {
   const { username: currentUser, login, register } = useAuth();
   const navigate = useNavigate();
+  // Si una ruta protegida lo mandó al login, después de entrar vuelve a ella.
+  const location = useLocation();
+  const fromLocation = (
+    location.state as { from?: { pathname: string; search?: string } } | null
+  )?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname}${fromLocation.search ?? ""}`
+    : "/";
 
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
@@ -58,7 +66,7 @@ function LoginPage() {
 
   // Si ya hay sesión no tiene sentido mostrar el login.
   if (currentUser) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={from} replace />;
   }
 
   const switchMode = (next: Mode) => {
@@ -83,7 +91,8 @@ function LoginPage() {
       } else {
         await register(username.trim(), email.trim(), password, department as Department);
       }
-      navigate("/");
+      // replace: el login no queda en el historial, así "atrás" no vuelve a él.
+      navigate(from, { replace: true });
     } catch (err) {
       setError(describeError(err, mode));
       setSubmitting(false);
