@@ -3,27 +3,44 @@ import type { WeeklyPodium } from "../types/podium";
 import type { Department } from "../types/departments";
 import type { MemeOrder, MemesData } from "../types/memesData";
 import { getStoredSession } from "./auth";
+import type { TagCount } from "../types/tag";
 
 const baseUrl = "/api/memes";
 
 const csrfHeaders = () => ({ "X-CSRF-Token": getStoredSession()?.csrf ?? "" });
 
 interface GetAllOptions {
-  // Solo memes de usuarios de estas carreras. Vacío o sin indicar: todos.
+  // Solo memes de usuarios de estas carreras (o etiquetados con ellas).
+  // Vacío o sin indicar: todos.
   departments?: Department[];
+  // Hashtags (sin "#"). El meme debe tener TODOS. Vacío: no filtra.
+  tags?: string[];
   // Por defecto, del más nuevo al más antiguo.
   order?: MemeOrder;
 }
 
-const getAll = ({ departments = [], order = "newest" }: GetAllOptions = {}) => {
-  // El parámetro se repite (department=a&department=b) en vez de ir separado
-  // por comas, porque algunos nombres llevan comas.
+const getAll = ({
+  departments = [],
+  tags = [],
+  order = "newest",
+}: GetAllOptions = {}) => {
+  // Los parámetros se repiten (department=a&department=b, tag=x&tag=y) en vez
+  // de ir separados por comas, porque algunos nombres de carrera llevan comas.
   const params = new URLSearchParams();
   departments.forEach((department) => params.append("department", department));
+  tags.forEach((tag) => params.append("tag", tag));
   params.set("order", order);
 
   return axios
     .get<MemesData[]>(baseUrl, { params })
+    .then((response) => response.data);
+};
+
+// Hashtags que ya existen, los más usados primero. Con `query` solo los que
+// empiezan con ese texto (para el buscador del filtro).
+const getTags = (query = "") => {
+  return axios
+    .get<TagCount[]>(`${baseUrl}/tags`, { params: query ? { q: query } : {} })
     .then((response) => response.data);
 };
 
@@ -74,6 +91,7 @@ const remove = (id: string) => {
 
 export default {
   getAll,
+  getTags,
   getPodium,
   create,
   update,

@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import memeService from "../services/meme";
+import {
+  DEPARTMENTS,
+  DEPARTMENT_SHORT_NAMES,
+  type Department,
+} from "../types/departments";
 import type { MemesData } from "../types/memesData";
 import { ACCEPT_ATTR, MAX_IMAGE_MB, validateImage } from "../utils/image";
+import { MAX_TAGS, MAX_TAG_LENGTH, normalizeTag } from "../utils/tags";
 
 const MAX_CONTENT_LENGTH = 300;
 
@@ -31,6 +37,8 @@ const describeError = (error: unknown): string => {
   return "No se pudo subir el meme. Intenta nuevamente.";
 };
 
+const TAG_FORMAT_ERROR = `El hashtag solo puede tener letras, números o _ (máx. ${MAX_TAG_LENGTH}).`;
+
 const UploadMemeModal = ({
   onClose,
   onCreated,
@@ -39,6 +47,10 @@ const UploadMemeModal = ({
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [content, setContent] = useState("");
+  // Etiqueta especial de carrera (opcional) y hashtags libres.
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -68,6 +80,52 @@ const UploadMemeModal = ({
     setImage(file);
   };
 
+  const toggleDepartment = (department: Department) => {
+    setDepartments((current) =>
+      current.includes(department)
+        ? current.filter((item) => item !== department)
+        : [...current, department]
+    );
+  };
+
+  // Agrega el hashtag escrito al arreglo (si es válido y no está repetido).
+  const addTag = () => {
+    if (tagInput.trim() === "") return;
+
+    const tag = normalizeTag(tagInput);
+    if (!tag) {
+      setError(TAG_FORMAT_ERROR);
+      return;
+    }
+    if (tags.includes(tag)) {
+      setTagInput("");
+      return;
+    }
+    if (tags.length >= MAX_TAGS) {
+      setError(`Máximo ${MAX_TAGS} hashtags.`);
+      return;
+    }
+    setError(null);
+    setTags([...tags, tag]);
+    setTagInput("");
+  };
+
+  const removeTag = (tag: string) => {
+    setTags((current) => current.filter((item) => item !== tag));
+  };
+
+  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // Enter, coma o espacio cierran el hashtag. Enter se frena para que no
+    // envíe el formulario completo.
+    if (event.key === "Enter" || event.key === "," || event.key === " ") {
+      event.preventDefault();
+      addTag();
+    } else if (event.key === "Backspace" && tagInput === "" && tags.length > 0) {
+      // Backspace con el campo vacío quita el último hashtag.
+      setTags((current) => current.slice(0, -1));
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
@@ -81,10 +139,30 @@ const UploadMemeModal = ({
       return;
     }
 
+    // Si quedó un hashtag escrito sin confirmar, se incluye al publicar.
+    let finalTags = tags;
+    if (tagInput.trim() !== "") {
+      const pending = normalizeTag(tagInput);
+      if (!pending) {
+        setError(TAG_FORMAT_ERROR);
+        return;
+      }
+      if (!tags.includes(pending)) {
+        if (tags.length >= MAX_TAGS) {
+          setError(`Máximo ${MAX_TAGS} hashtags.`);
+          return;
+        }
+        finalTags = [...tags, pending];
+      }
+    }
+
     setSubmitting(true);
     setError(null);
     try {
-      const meme = await memeService.create(content.trim(), image);
+      const meme = await memeService.create(content.trim(), image, {
+        departments,
+        tags: finalTags,
+      });
       onCreated(meme);
       onClose();
     } catch (err) {
@@ -171,6 +249,69 @@ const UploadMemeModal = ({
             />
             <span className="field-hint text-right">
               {content.length}/{MAX_CONTENT_LENGTH}
+            </span>
+          </div>
+
+          {/* Etiqueta especial de carrera (opcional, se pueden elegir varias). */}
+          <div>
+            <span className="field-label">Carrera (opcional)</span>
+            <div
+              role="group"
+              aria-label="Carrera del meme"
+              className="flex flex-wrap gap-2"
+            >
+              {DEPARTMENTS.map((department) => (
+                <button
+                  key={department}
+                  type="button"
+                  title={department}
+                  aria-pressed={departments.includes(department)}
+                  onClick={() => toggleDepartment(department)}
+                  className="chip"
+                >
+                  {DEPARTMENT_SHORT_NAMES[department]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hashtags libres: se escribe y se confirma con Enter, coma o espacio. */}
+          <div>
+            <label htmlFor="meme-tags" className="field-label">
+              Hashtags (opcional)
+            </label>
+            {tags.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <span key={tag} className="chip">
+                    #{tag}
+                    <button
+                      type="button"
+                      aria-label={`Quitar #${tag}`}
+                      onClick={() => removeTag(tag)}
+                      className="ml-1 inline-flex items-center"
+                    >
+                      <CloseIcon fontSize="inherit" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <input
+              id="meme-tags"
+              type="text"
+              value={tagInput}
+              maxLength={MAX_TAG_LENGTH + 1}
+              placeholder={
+                tags.length >= MAX_TAGS ? "Máximo alcanzado" : "#parcial"
+              }
+              disabled={tags.length >= MAX_TAGS}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              className="field"
+            />
+            <span className="field-hint">
+              Enter, coma o espacio para agregar · {tags.length}/{MAX_TAGS}
             </span>
           </div>
 

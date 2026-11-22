@@ -53,25 +53,33 @@ router.use("/:id/report", memeReportRouter);
 
 // Público: cualquiera (incluidos invitados) puede ver los memes, con sus
 // totales de likes y dislikes. Parámetros opcionales (query string):
-//   - department: carrera del AUTOR del meme. Se puede repetir para combinar
-//                 varias (?department=DCC&department=Física); no se separan con
-//                 coma porque algunos nombres la llevan ("Química, Biotecnología
-//                 y Materiales"). Sin ninguno, se devuelven todos los memes.
+//   - department: carrera del autor O etiqueta de carrera del meme. Se puede
+//                 repetir (?department=DCC&department=Física) y basta con
+//                 coincidir con alguna. No se separan con coma porque algunos
+//                 nombres la llevan.
+//   - tag:        hashtag del meme, repetible (?tag=parcial&tag=mechon). El
+//                 meme debe tener TODOS los hashtags pedidos. Con "#" o sin él,
+//                 y sin importar mayúsculas.
 //   - order:      "newest" (por defecto, del más nuevo al más antiguo) u "oldest".
+// Entre department y tag se exigen ambos. Sin filtros, se devuelven todos.
 router.get("/", async (request, response) => {
-  const rawDepartments = request.query.department;
-  const departments =
-    rawDepartments === undefined
-      ? []
-      : Array.isArray(rawDepartments)
-        ? rawDepartments
-        : [rawDepartments];
+  const departments = toList(request.query.department);
   if (!departments.every(isDepartment)) {
     response.status(400).json({
       error: `department must be one of: ${DEPARTMENTS.join(", ")}`,
     });
     return;
   }
+
+  // Se normalizan igual que al subir: "#Parcial" y "parcial" son lo mismo.
+  const tagList = toList(request.query.tag).map(normalizeTag);
+  if (tagList.some((tag) => tag === null)) {
+    response.status(400).json({
+      error: `tag must be 1-${MAX_TAG_LENGTH} letters, numbers or _`,
+    });
+    return;
+  }
+  const tagFilters = [...new Set(tagList as string[])];
 
   const order = request.query.order ?? "newest";
   if (order !== "newest" && order !== "oldest") {
@@ -80,23 +88,26 @@ router.get("/", async (request, response) => {
   }
   const direction = order === "oldest" ? 1 : -1;
 
-  // Un meme coincide si alguna de sus etiquetas está entre las carreras
-  // elegidas O si el autor pertenece a una de ellas.
-  const filter =
-    departments.length > 0
+  // Dos claves distintas en un mismo filtro de MongoDB se combinan con Y.
+  const filter = {
+    // Etiquetado en el meme O autor de esa carrera (basta con alguna).
+    ...(departments.length > 0
       ? {
-        $or: [
-          { departments: { $in: departments } },   // etiquetado en el meme
-          {
-            user: {
-              $in: await User.distinct("_id", {
-                department: { $in: departments },  // carrera del autor
-              }),
+          $or: [
+            { departments: { $in: departments } },
+            {
+              user: {
+                $in: await User.distinct("_id", {
+                  department: { $in: departments },
+                }),
+              },
             },
-          },
-        ],
-      }
-      : {};
+          ],
+        }
+      : {}),
+    // Tiene TODOS los hashtags elegidos ($all = todos; $in = alguno).
+    ...(tagFilters.length > 0 ? { tags: { $all: tagFilters } } : {}),
+  };
 
   // _id como desempate: si dos memes tienen la misma fecha, el orden es estable.
   const memes = await MemeModel.find(filter).sort({
@@ -104,6 +115,36 @@ router.get("/", async (request, response) => {
     _id: direction,
   });
   response.json(await withReactionCounts(memes));
+});
+
+const MAX_TAG_SUGGESTIONS = 30;
+
+// Público: hashtags que ya existen, los más usados primero.
+// Responde [{ tag: "parcial", count: 12 }, ...] (máx. 30).
+//   - q: opcional, solo los que empiezan con ese texto (para el buscador).
+router.get("/tags", async (request, response) => {
+  const rawQuery = typeof request.query.q === "string" ? request.query.q : "";
+  const q = rawQuery.trim().replace(/^#+/, "").toLowerCase();
+
+  // El texto de búsqueda solo puede tener los mismos caracteres que un hashtag,
+  // así que no hace falta escapar nada para usarlo en la expresión regular.
+  if (q !== "" && (q.length > MAX_TAG_LENGTH || !TAG_PATTERN.test(q))) {
+    response.json([]);
+    return;
+  }
+
+  // aggregate() NO aplica el filtro automático del modelo, así que los memes
+  // eliminados por moderación se descartan a mano (removedAt: null).
+  const tags = await MemeModel.aggregate<{ _id: string; count: number }>([
+    { $match: { removedAt: null } },
+    { $unwind: "$tags" },
+    { $match: q ? { tags: { $regex: `^${q}` } } : {} },
+    { $group: { _id: "$tags", count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: MAX_TAG_SUGGESTIONS },
+  ]);
+
+  response.json(tags.map(({ _id, count }) => ({ tag: _id, count })));
 });
 
 // Solo usuarios con sesión: la reacción que el usuario puso en cada meme, como
@@ -138,6 +179,8 @@ router.get("/podium", async (_request, response) => {
 
   response.json({ weekStart: start, weekEnd: end, podium: buildPodium(ranked) });
 });
+
+
 
 router.get("/:id", async (request, response) => {
   const meme = await MemeModel.findById(request.params.id);

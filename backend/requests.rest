@@ -439,3 +439,28 @@ GET http://localhost:3001/api/memes?department=Geología&department=Física
 
 ### TEST 9 - Sin filtro (debe devolver todo)
 GET http://localhost:3001/api/memes
+
+### TEST 10 - Hashtags existentes, más usados primero
+GET http://localhost:3001/api/memes/tags
+
+### TEST 11 - Buscar hashtags que empiezan con "un"
+GET http://localhost:3001/api/memes/tags?q=un
+
+### TEST 12 - Memes con un hashtag (cambia "uno" por uno que exista)
+GET http://localhost:3001/api/memes?tag=uno
+
+### TEST 13 - Con # codificado (%23) y mayúscula -> mismo resultado que el 12
+GET http://localhost:3001/api/memes?tag=%23UNO
+
+### TEST 14 - Dos hashtags (Y): solo memes que tengan AMBOS
+# Esperado: solo los memes con #uno Y #dos. Los que tengan uno solo, no salen.
+GET http://localhost:3001/api/memes?tag=uno&tag=dos
+
+### TEST 15 - Un hashtag que no existe junto a uno que sí -> lista vacía []
+GET http://localhost:3001/api/memes?tag=uno&tag=noexiste
+
+### TEST 16 - Carrera + hashtag (Y): de DCC Y con el hashtag
+GET http://localhost:3001/api/memes?department=DCC&tag=uno
+
+### TEST 17 - Hashtag inválido -> 400
+GET http://localhost:3001/api/memes?tag=hola!
