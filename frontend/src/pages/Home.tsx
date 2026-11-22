@@ -234,6 +234,7 @@ function Home() {
         {/* Los invitados también ven el botón, pero los lleva al login; el
             backend además rechaza con 401 cualquier subida sin sesión. */}
         <button
+          data-testid="addIcon"
           type="button"
           title={canUpload ? "Subir meme" : "Inicia sesión para subir memes"}
           aria-label="Subir meme"
