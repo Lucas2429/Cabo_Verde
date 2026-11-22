@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "start:test": "cross-env NODE_ENV=test tsx src/index.ts",
     "dev:test": "cross-env NODE_ENV=test tsx watch src/index.ts",
+    "set-role": "tsx src/scripts/setRole.ts",
     "build:ui": "rm -rf dist && cd ../frontend && npm run build && cp -r dist ../backend"
   },
   "keywords": [],
