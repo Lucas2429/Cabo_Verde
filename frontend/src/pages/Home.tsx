@@ -5,6 +5,7 @@ import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import Header from "../components/Header";
 import CategoryBar from "../components/CategoryBar";
+import TagFilter from "../components/TagFilter";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import type { MemeModerationHandlers } from "../components/MemeAdminMenu";
@@ -32,17 +33,22 @@ function Home() {
   // La lista de memes, las carreras elegidas y el orden viven en el store de
   // Zustand (stores/memeStore.ts), no en esta página: así se conservan al ir a
   // otra vista y volver con el botón "atrás".
-  const { memes, loading, loadError, selectedDepartments, order } = useMemeStore(
+  const { memes, loading, loadError, selectedDepartments, selectedTags, order } = useMemeStore(
     useShallow((state) => ({
       memes: state.memes,
       loading: state.loading,
       loadError: state.loadError,
       selectedDepartments: state.selectedDepartments,
+      selectedTags: state.selectedTags,
       order: state.order,
     }))
   );
   const fetchMemes = useMemeStore((state) => state.fetchMemes);
   const toggleDepartment = useMemeStore((state) => state.toggleDepartment);
+  const toggleTag = useMemeStore((state) => state.toggleTag);
+  const clearTags = useMemeStore((state) => state.clearTags);
+  const clearFilters = useMemeStore((state) => state.clearFilters);
+  const hasFilters = selectedDepartments.length > 0 || selectedTags.length > 0;
   const toggleOrder = useMemeStore((state) => state.toggleOrder);
   const updateCounts = useMemeStore((state) => state.updateCounts);
   const patchMeme = useMemeStore((state) => state.patchMeme);
@@ -63,7 +69,7 @@ function Home() {
   // orden. El store descarta las respuestas viejas si llegan fuera de orden.
   useEffect(() => {
     void fetchMemes();
-  }, [fetchMemes, selectedDepartments, order]);
+  }, [fetchMemes, selectedDepartments, selectedTags, order]);
 
   // El botón de "subir al inicio" aparece solo cuando ya se bajó un poco.
   useEffect(() => {
@@ -84,8 +90,8 @@ function Home() {
   const galleryStyle =
     memes.length > 0
       ? {
-          maxWidth: `calc(${memes.length} * 18rem + ${memes.length - 1} * 1.25rem)`,
-        }
+        maxWidth: `calc(${memes.length} * 18rem + ${memes.length - 1} * 1.25rem)`,
+      }
       : undefined;
 
   const handleLogout = async () => {
@@ -129,20 +135,24 @@ function Home() {
         {/* Header y filtros quedan fijos arriba al hacer scroll; al bajar ganan
             un fondo de vidrio para que los memes no se mezclen con ellos. */}
         <div
-          className={`sticky top-0 z-30 -mx-3 border-b px-3 pb-3 pt-3 transition-colors duration-300 sm:-mx-6 sm:px-6 md:-mx-12 md:px-12 ${
-            isScrolled
-              ? "border-gray-300 bg-gray-50/85 backdrop-blur-md dark:border-gray-700 dark:bg-gray-950/85"
-              : "border-transparent"
-          }`}
+          className={`sticky top-0 z-30 -mx-3 border-b px-3 pb-3 pt-3 transition-colors duration-300 sm:-mx-6 sm:px-6 md:-mx-12 md:px-12 ${isScrolled
+            ? "border-gray-300 bg-gray-50/85 backdrop-blur-md dark:border-gray-700 dark:bg-gray-950/85"
+            : "border-transparent"
+            }`}
         >
           <Header onLogout={handleLogout} />
 
-          <div className="mt-3">
+          <div className="mt-3 space-y-2">
             <CategoryBar
               selected={selectedDepartments}
               onToggle={toggleDepartment}
               order={order}
               onToggleOrder={toggleOrder}
+            />
+            <TagFilter
+              selected={selectedTags}
+              onToggle={toggleTag}
+              onClear={clearTags}
             />
           </div>
         </div>
@@ -154,11 +164,22 @@ function Home() {
             </p>
           )}
           {!loadError && !loading && memes.length === 0 && (
-            <p className="surface mx-auto max-w-xl p-6 text-center text-gray-500 dark:text-gray-400">
-              {selectedDepartments.length > 0
-                ? "No hay memes de las carreras seleccionadas."
-                : "Todavía no hay memes por aquí."}
-            </p>
+            <div className="surface mx-auto max-w-xl p-6 text-center text-gray-500 dark:text-gray-400">
+              <p>
+                {hasFilters
+                  ? "No hay memes que cumplan todos los filtros elegidos."
+                  : "Todavía no hay memes por aquí."}
+              </p>
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="btn-secondary mt-4"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
           )}
 
           {/* Columnas de ~18rem: el número de columnas se adapta solo al ancho

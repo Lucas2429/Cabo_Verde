@@ -2,7 +2,10 @@ import { useState } from "react";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import memeService from "../services/meme";
+import type { Department } from "../types/departments";
 import type { MemesData } from "../types/memesData";
+import { withPendingTag } from "../utils/tags";
+import MemeTagsField from "./MemeTagsField";
 
 const MAX_CONTENT_LENGTH = 300;
 
@@ -34,8 +37,12 @@ const describeError = (error: unknown): string => {
   return "No se pudo guardar el cambio. Intenta nuevamente.";
 };
 
-// Edita la descripción de un meme propio. La imagen no se puede cambiar: para
-// eso se elimina la publicación y se sube otra.
+// Mismos elementos, sin importar el orden.
+const sameItems = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((item) => b.includes(item));
+
+// Edita la descripción, las carreras y los hashtags de un meme propio. La
+// imagen no se puede cambiar: para eso se elimina la publicación y se sube otra.
 const EditMemeModal = ({
   meme,
   onClose,
@@ -43,6 +50,11 @@ const EditMemeModal = ({
   onSessionExpired,
 }: EditMemeModalProps) => {
   const [content, setContent] = useState(meme.content);
+  const [departments, setDepartments] = useState<Department[]>(
+    meme.departments ?? []
+  );
+  const [tags, setTags] = useState<string[]>(meme.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,8 +67,21 @@ const EditMemeModal = ({
       setError("Escribe una descripción.");
       return;
     }
+
+    // Si quedó un hashtag escrito sin confirmar, se incluye al guardar.
+    const result = withPendingTag(tags, tagInput);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    const finalTags = result.tags;
+
     // Sin cambios: no hace falta molestar al servidor.
-    if (trimmed === meme.content) {
+    if (
+      trimmed === meme.content &&
+      sameItems(departments, meme.departments ?? []) &&
+      sameItems(finalTags, meme.tags ?? [])
+    ) {
       onClose();
       return;
     }
@@ -64,7 +89,10 @@ const EditMemeModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      const updated = await memeService.update(meme.id, trimmed);
+      const updated = await memeService.update(meme.id, trimmed, {
+        departments,
+        tags: finalTags,
+      });
       onUpdated(updated);
       onClose();
     } catch (err) {
@@ -110,10 +138,7 @@ const EditMemeModal = ({
           </div>
 
           <div>
-            <label
-              htmlFor="edit-meme-content"
-              className="field-label"
-            >
+            <label htmlFor="edit-meme-content" className="field-label">
               Descripción
             </label>
             <input
@@ -129,6 +154,17 @@ const EditMemeModal = ({
               {content.length}/{MAX_CONTENT_LENGTH}
             </span>
           </div>
+
+          <MemeTagsField
+            departments={departments}
+            onDepartmentsChange={setDepartments}
+            tags={tags}
+            onTagsChange={setTags}
+            tagInput={tagInput}
+            onTagInputChange={setTagInput}
+            onError={setError}
+            inputId="edit-meme-tags"
+          />
 
           {error && (
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">

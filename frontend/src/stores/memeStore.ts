@@ -12,15 +12,24 @@ interface MemeState {
   // true hasta que llega la primera respuesta del backend (muestra el esqueleto).
   loading: boolean;
   loadError: boolean;
-  // Carreras seleccionadas en las categorías (vacío = todas) y orden de la
-  // galería. El backend filtra y ordena; cada cambio vuelve a pedir la lista.
+  // Carreras seleccionadas en las categorías (vacío = todas), hashtags
+  // seleccionados (vacío = no filtra) y orden de la galería. El backend filtra
+  // y ordena; cada cambio vuelve a pedir la lista.
   selectedDepartments: Department[];
+  selectedTags: string[];
   order: MemeOrder;
   // Reacción del usuario con sesión a cada meme: { idDelMeme: tipo }.
   myReactions: Record<string, ReactionType>;
 
   fetchMemes: () => Promise<void>;
   toggleDepartment: (department: Department) => void;
+  toggleTag: (tag: string) => void;
+  clearTags: () => void;
+  clearFilters: () => void;
+  // Deja SOLO ese filtro (reemplaza lo que hubiera). Se usa al tocar un
+  // hashtag o una carrera dentro del modal de un meme.
+  showOnlyTag: (tag: string) => void;
+  showOnlyDepartment: (department: Department) => void;
   toggleOrder: () => void;
   updateCounts: (
     memeId: string,
@@ -41,15 +50,17 @@ export const useMemeStore = create<MemeState>((set, get) => ({
   loading: true,
   loadError: false,
   selectedDepartments: [],
+  selectedTags: [],
   order: "newest",
   myReactions: {},
 
   fetchMemes: async () => {
     const requestId = ++lastRequestId;
-    const { selectedDepartments, order } = get();
+    const { selectedDepartments, selectedTags, order } = get();
     try {
       const memes = await memeService.getAll({
         departments: selectedDepartments,
+        tags: selectedTags,
         order,
       });
       if (requestId !== lastRequestId) return;
@@ -66,6 +77,20 @@ export const useMemeStore = create<MemeState>((set, get) => ({
         ? state.selectedDepartments.filter((item) => item !== department)
         : [...state.selectedDepartments, department],
     })),
+
+  toggleTag: (tag) =>
+    set((state) => ({
+      selectedTags: state.selectedTags.includes(tag)
+        ? state.selectedTags.filter((item) => item !== tag)
+        : [...state.selectedTags, tag],
+    })),
+
+  clearTags: () => set({ selectedTags: [] }),
+
+  clearFilters: () => set({ selectedDepartments: [], selectedTags: [] }),
+  showOnlyTag: (tag) => set({ selectedTags: [tag], selectedDepartments: [] }),
+
+  showOnlyDepartment: (department) => set({ selectedDepartments: [department], selectedTags: [] }),
 
   toggleOrder: () =>
     set((state) => ({ order: state.order === "newest" ? "oldest" : "newest" })),
