@@ -7,8 +7,9 @@ type Props = {
   onChange: (department: Department) => void;
 };
 
-// Selector desplegable con el mismo estilo del resto de la página: botón
-// redondeado azul (#5a6c8a) con texto blanco y lista en tarjeta blanca.
+// Selector desplegable con el mismo estilo de los campos del resto de la
+// página: botón redondeado gris claro (como el input de los comentarios) y
+// lista en tarjeta blanca con acento índigo.
 // Funciona con mouse y teclado (flechas, Enter/Espacio, Escape, Home/End).
 function DepartmentSelect({ id, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
@@ -97,9 +98,9 @@ function DepartmentSelect({ id, value, onChange }: Props) {
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={handleKeyDown}
-        className="w-full flex items-center justify-between gap-2 bg-[#5a6c8a] hover:bg-[#485770] text-white font-semibold py-2.5 pl-5 pr-4 rounded-full transition-colors cursor-pointer shadow-md text-sm text-left focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-4 pr-3 text-left text-sm text-gray-900 transition-colors hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
       >
-        <span className={`truncate ${value ? "" : "text-white/70"}`}>
+        <span className={`truncate ${value ? "" : "text-gray-400 dark:text-gray-500"}`}>
           {value || "Seleccionar"}
         </span>
         <svg
@@ -121,7 +122,7 @@ function DepartmentSelect({ id, value, onChange }: Props) {
           ref={listRef}
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-2 w-full max-h-60 overflow-auto bg-[#b4b4b4] border-2 border-gray-800 rounded-2xl shadow-xl p-1.5 space-y-0.5"
+          className="absolute z-20 mt-2 max-h-60 w-full space-y-0.5 overflow-auto rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900"
         >
           {DEPARTMENTS.map((department, index) => {
             const selected = department === value;
@@ -134,12 +135,12 @@ function DepartmentSelect({ id, value, onChange }: Props) {
                 aria-selected={selected}
                 onMouseEnter={() => setActive(index)}
                 onClick={() => select(department)}
-                className={`px-4 py-2 rounded-full text-sm cursor-pointer transition-colors ${
+                className={`cursor-pointer rounded-xl px-4 py-2 text-sm transition-colors ${
                   selected
-                    ? "bg-[#5a6c8a] text-white font-semibold"
+                    ? "bg-indigo-600 font-semibold text-white"
                     : highlighted
-                      ? "bg-[#868686] text-white"
-                      : "text-gray-900"
+                      ? "bg-indigo-50 text-indigo-700 dark:bg-gray-800 dark:text-indigo-300"
+                      : "text-gray-800 dark:text-gray-200"
                 }`}
               >
                 {department}

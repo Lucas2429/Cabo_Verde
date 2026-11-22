@@ -8,6 +8,8 @@ export type MemesData = {
   image: string;
   likes: number;
   dislikes: number;
+  // true si un admin limitó los comentarios: se ven, pero no se puede comentar.
+  commentsLocked: boolean;
   createdAt: string;
   updatedAt: string;
 };

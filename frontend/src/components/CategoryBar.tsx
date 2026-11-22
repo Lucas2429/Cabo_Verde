@@ -28,7 +28,7 @@ function CategoryBar({ selected, onToggle, order, onToggleOrder }: Props) {
     <div
       role="group"
       aria-label="Filtrar por carrera"
-      className="max-w-[2000px] mx-auto flex flex-wrap items-center justify-center xl:justify-between gap-2 sm:gap-3"
+      className="mx-auto flex max-w-[2000px] flex-nowrap items-center justify-start gap-2 overflow-x-auto py-1 [scrollbar-width:none] sm:flex-wrap sm:justify-center sm:overflow-visible sm:py-0 [&::-webkit-scrollbar]:hidden"
     >
       {DEPARTMENTS.map((department) => {
         const active = selected.includes(department);
@@ -40,11 +40,7 @@ function CategoryBar({ selected, onToggle, order, onToggleOrder }: Props) {
             title={department}
             aria-pressed={active}
             onClick={() => onToggle(department)}
-            className={`font-bold text-sm rounded-full px-4 py-1.5 shadow-md transition-colors cursor-pointer ${
-              active
-                ? "bg-[#5a6c8a] text-white"
-                : "bg-[#b4b4b4] hover:bg-[#868686] text-black"
-            }`}
+            className="chip"
           >
             {DEPARTMENT_SHORT_NAMES[department]}
           </button>
@@ -56,7 +52,7 @@ function CategoryBar({ selected, onToggle, order, onToggleOrder }: Props) {
         title={orderLabel}
         aria-label={orderLabel}
         onClick={onToggleOrder}
-        className="flex items-center gap-1 bg-[#b4b4b4] hover:bg-[#868686] text-black font-bold italic text-lg rounded-full px-5 py-2 shadow-md transition-colors cursor-pointer"
+        className="chip !border-indigo-300 !text-indigo-700 dark:!border-indigo-400/60 dark:!text-indigo-300"
       >
         Filtrar
         {newestFirst ? (

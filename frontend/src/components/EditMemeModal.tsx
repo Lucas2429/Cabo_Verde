@@ -83,16 +83,16 @@ const EditMemeModal = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-[30px] border-4 border-gray-800 w-full max-w-md max-h-[95vh] overflow-y-auto shadow-2xl relative"
+        className="modal-card max-h-[95vh] max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Editar publicación
           </h2>
           <button
             onClick={onClose}
-            className="bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transition-colors cursor-pointer flex items-center justify-center"
+            className="icon-btn"
             type="button"
             aria-label="Cerrar"
           >
@@ -101,7 +101,7 @@ const EditMemeModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex min-h-32 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 p-2">
+          <div className="flex min-h-32 items-center justify-center rounded-2xl bg-gray-100 p-2 dark:bg-gray-800">
             <img
               src={meme.image}
               alt={meme.content || "Meme"}
@@ -112,7 +112,7 @@ const EditMemeModal = ({
           <div>
             <label
               htmlFor="edit-meme-content"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              className="field-label"
             >
               Descripción
             </label>
@@ -123,9 +123,9 @@ const EditMemeModal = ({
               maxLength={MAX_CONTENT_LENGTH}
               autoFocus
               onChange={(e) => setContent(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="field"
             />
-            <span className="text-[11px] text-gray-400 mt-1 block text-right">
+            <span className="field-hint text-right">
               {content.length}/{MAX_CONTENT_LENGTH}
             </span>
           </div>
@@ -141,14 +141,14 @@ const EditMemeModal = ({
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="bg-[#b4b4b4] hover:bg-[#868686] disabled:opacity-60 disabled:cursor-not-allowed text-black font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+              className="btn-secondary"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="bg-[#5a6c8a] hover:bg-[#485770] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+              className="btn-primary"
             >
               {submitting ? "Guardando..." : "Guardar"}
             </button>

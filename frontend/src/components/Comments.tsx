@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import SendIcon from "@mui/icons-material/Send";
+import SettingsIcon from "@mui/icons-material/Settings";
+import ReportOutlinedIcon from "@mui/icons-material/ReportOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
@@ -10,11 +12,17 @@ import type { CommentData } from "../types/commentData";
 import { useAuth } from "../context/auth";
 import { timeAgo } from "../utils/time";
 import UserAvatar from "./UserAvatar";
+import ModerationReasonModal from "./ModerationReasonModal";
+import ReportModal from "./ReportModal";
+import adminService from "../services/admin";
 
 const MAX_CONTENT_LENGTH = 300;
 
 interface CommentsProps {
   memeId: string;
+  // true si un admin limitó los comentarios de este meme: se pueden leer, pero
+  // no escribir ni responder.
+  locked: boolean;
   // Se llama si el backend responde 401 (la sesión expiró).
   onSessionExpired: () => void;
 }
@@ -54,8 +62,13 @@ const findRootId = (comment: CommentData, byId: Map<string, CommentData>): strin
 // (del más nuevo al más viejo) y, debajo de cada uno, todas sus respuestas (de
 // la más vieja a la más nueva, para que se lean como una conversación). Si se
 // responde a una respuesta, queda en el mismo hilo con un "@usuario" al inicio.
-const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
-  const { username } = useAuth();
+const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
+  const { username, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  // Comentario que se está reportando (id) y comentario que un admin va a
+  // eliminar por moderación.
+  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
+  const [moderatingComment, setModeratingComment] = useState<CommentData | null>(null);
 
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -291,6 +304,33 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
   };
 
 
+  // Un admin eliminó el comentario: queda en el hilo como "Comentario eliminado"
+  // (igual que si lo hubiera borrado su autor y tuviera respuestas).
+  const markRemoved = (commentId: string) => {
+    setComments((prev) =>
+      prev.map((comment) =>
+        comment.id === commentId
+          ? {
+              ...comment,
+              content: "[Comentario eliminado]",
+              deletedAt: new Date().toISOString(),
+            }
+          : comment
+      )
+    );
+    if (replyingTo?.id === commentId) setReplyingTo(null);
+    if (editingId === commentId) setEditingId(null);
+  };
+
+  // Un invitado que toca "reportar" va al login (como con los likes).
+  const handleReportClick = (comment: CommentData) => {
+    if (username === null) {
+      navigate("/login");
+      return;
+    }
+    setReportingCommentId(comment.id);
+  };
+
   const renderComment = (comment: CommentData, isReply: boolean) => {
     // Responder a una respuesta deja el comentario dentro del mismo hilo, así
     // que se aclara a quién va dirigido con un "@usuario".
@@ -300,6 +340,10 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
     const isOwner = username === comment.author;
     const isEditing = editingId === comment.id;
     const isDeleted = Boolean(comment.deletedAt);
+    // Los comentarios ajenos se reportan; los admins los moderan con el
+    // engranaje (que reemplaza al botón de reportar).
+    const canReport = !isAdmin && !isOwner;
+    const canModerate = isAdmin && !isOwner;
 
     return (
       <div key={comment.id} className="flex gap-3">
@@ -373,18 +417,21 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
               </p>
             )}
 
-          {/* Los invitados pueden leer, pero no escribir. */}
-          {username && !isEditing && !isDeleted && (
-            <div className="mt-1 flex gap-3">
-              <button
-                type="button"
-                onClick={() => startReply(comment)}
-                className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
-              >
-                Responder
-              </button>
+          {!isEditing && !isDeleted && (
+            <div className="mt-1 flex items-center gap-3">
+              {/* Los invitados pueden leer, pero no escribir. Con los comentarios
+                  limitados por un admin, nadie puede responder. */}
+              {username && !locked && (
+                <button
+                  type="button"
+                  onClick={() => startReply(comment)}
+                  className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
+                >
+                  Responder
+                </button>
+              )}
 
-              {isOwner && (
+              {username && isOwner && (
                 <>
                   <button
                     type="button"
@@ -402,6 +449,30 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
                     Eliminar
                   </button>
                 </>
+              )}
+
+              {canReport && (
+                <button
+                  type="button"
+                  title="Reportar comentario"
+                  aria-label="Reportar comentario"
+                  onClick={() => handleReportClick(comment)}
+                  className="ml-auto text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 cursor-pointer"
+                >
+                  <ReportOutlinedIcon sx={{ fontSize: 18 }} />
+                </button>
+              )}
+
+              {canModerate && (
+                <button
+                  type="button"
+                  title="Moderar comentario"
+                  aria-label="Moderar comentario"
+                  onClick={() => setModeratingComment(comment)}
+                  className="ml-auto text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 cursor-pointer"
+                >
+                  <SettingsIcon sx={{ fontSize: 18 }} />
+                </button>
               )}
             </div>
           )}
@@ -471,7 +542,13 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
       </div>
 
       <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        {username ? (
+        {locked ? (
+          // Un admin limitó los comentarios de este meme: se leen, pero no se
+          // puede comentar (el backend también lo rechaza con 403).
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400 p-3 py-5">
+            Los comentarios están limitados en esta publicación.
+          </p>
+        ) : username ? (
           <>
             {replyingTo && (
               <div className="flex items-center justify-between gap-2 px-4 pt-2.5 text-xs text-gray-500 dark:text-gray-400">
@@ -542,6 +619,35 @@ const Comments = ({ memeId, onSessionExpired }: CommentsProps) => {
         )}
       </div>
 
+
+      {/* Formulario para reportar un comentario ajeno */}
+      {reportingCommentId && (
+        <ReportModal
+          target="comment"
+          memeId={memeId}
+          commentId={reportingCommentId}
+          onClose={() => setReportingCommentId(null)}
+        />
+      )}
+
+      {/* Un admin elimina un comentario por moderación (pide el motivo) */}
+      {moderatingComment && (
+        <ModerationReasonModal
+          title="¿Eliminar este comentario?"
+          description="En la conversación quedará como “Comentario eliminado”. El texto original se guarda con el motivo como registro de la moderación."
+          preview={
+            <p className="break-words rounded-xl bg-gray-100 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <span className="font-semibold">{moderatingComment.author}: </span>
+              {moderatingComment.content}
+            </p>
+          }
+          onConfirm={async (reason) => {
+            await adminService.removeComment(moderatingComment.id, reason);
+            markRemoved(moderatingComment.id);
+          }}
+          onClose={() => setModeratingComment(null)}
+        />
+      )}
 
       {/* Ventana de confirmación para eliminar un comentario */}
       {deletingId && (

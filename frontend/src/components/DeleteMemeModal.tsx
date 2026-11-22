@@ -68,16 +68,16 @@ const DeleteMemeModal = ({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="delete-meme-title"
-        className="bg-white dark:bg-gray-900 p-6 md:p-8 rounded-[30px] border-4 border-gray-800 w-full max-w-sm shadow-2xl"
+        className="modal-card max-w-sm"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center text-center gap-3">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600 text-4xl">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-4xl text-red-600 dark:bg-red-500/15 dark:text-red-400">
             <DeleteOutlinedIcon fontSize="inherit" />
           </span>
           <h2
             id="delete-meme-title"
-            className="text-xl font-bold text-gray-800 dark:text-white"
+            className="text-xl font-bold text-gray-900 dark:text-white"
           >
             ¿Eliminar esta publicación?
           </h2>
@@ -104,7 +104,7 @@ const DeleteMemeModal = ({
             type="button"
             onClick={onClose}
             disabled={deleting}
-            className="bg-[#b4b4b4] hover:bg-[#868686] disabled:opacity-60 disabled:cursor-not-allowed text-black font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+            className="btn-secondary"
           >
             Cancelar
           </button>
@@ -112,7 +112,7 @@ const DeleteMemeModal = ({
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-6 rounded-full transition-colors cursor-pointer shadow-md"
+            className="btn-danger"
           >
             {deleting ? "Eliminando..." : "Eliminar"}
           </button>

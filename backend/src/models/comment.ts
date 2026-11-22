@@ -14,6 +14,14 @@ export interface CommentData {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  // Eliminación por moderación ("borrado con huella"). A diferencia de
+  // `deletedAt` (el autor borra el suyo y el texto se reemplaza), aquí el texto
+  // ORIGINAL se conserva en `content` como evidencia y solo se oculta al
+  // público (ver toJSON). El comentario nunca se borra físicamente: queda como
+  // "Comentario eliminado", igual que en Reddit.
+  removedAt: Date | null;
+  removedBy: mongoose.Types.ObjectId | null;
+  removalReason: string | null;
 }
 
 const commentSchema = new mongoose.Schema<CommentData>(
@@ -34,6 +42,9 @@ const commentSchema = new mongoose.Schema<CommentData>(
     },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     deletedAt: { type: Date, default: null, },
+    removedAt: { type: Date, default: null },
+    removedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    removalReason: { type: String, default: null },
 
   },
   {
@@ -51,6 +62,11 @@ commentSchema.set("toJSON", {
       meme?: unknown;
       parent?: mongoose.Types.ObjectId | string | null;
       user?: unknown;
+      content?: string;
+      deletedAt?: Date | null;
+      removedAt?: Date | null;
+      removedBy?: unknown;
+      removalReason?: unknown;
     }
   ) => {
     returnedObject.id = returnedObject._id?.toString();
@@ -62,6 +78,17 @@ commentSchema.set("toJSON", {
     // A diferencia del meme, el cliente SÍ necesita el id del padre para armar
     // los hilos. Siempre se envía (null si es un comentario de primer nivel).
     returnedObject.parent = returnedObject.parent?.toString() ?? null;
+    // Comentario eliminado por moderación: al público se le entrega igual que uno
+    // eliminado por su autor (sin el texto y con `deletedAt`), así el frontend
+    // lo muestra como "Comentario eliminado". El texto original y los datos de
+    // la eliminación solo los ven los admins, por controllers/admin.ts.
+    if (returnedObject.removedAt) {
+      returnedObject.content = "[Comentario eliminado]";
+      returnedObject.deletedAt = returnedObject.removedAt;
+    }
+    delete returnedObject.removedAt;
+    delete returnedObject.removedBy;
+    delete returnedObject.removalReason;
   },
 });
 
