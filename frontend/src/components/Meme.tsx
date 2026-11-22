@@ -47,6 +47,10 @@ const Meme = ({
   const { username, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [reporting, setReporting] = useState(false);
+  // true cuando la imagen terminó de cargar (o falló): hasta entonces se ve
+  // transparente sobre el fondo gris de la tarjeta, y al llegar aparece con un
+  // fundido en vez de "saltar" de golpe.
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const isOwner = onEdit !== undefined && onDelete !== undefined;
   // El engranaje de admin no va si ya hay botones de dueño en la misma esquina.
@@ -67,13 +71,35 @@ const Meme = ({
   return (
     <div className="group relative cursor-pointer overflow-hidden rounded-2xl bg-gray-200 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/20 dark:bg-gray-800 dark:ring-white/25">
       <img
+        // Si la imagen ya estaba en la caché del navegador, puede estar completa
+        // antes de que React escuche el evento "load": se revisa al montarla.
+        ref={(img) => {
+          if (img?.complete) setImageLoaded(true);
+        }}
         src={meme.image}
         alt={meme.content || "Meme"}
+        // Con el tamaño real (width y height) el navegador conoce la proporción
+        // desde el primer momento y reserva el alto de la tarjeta antes de que la
+        // imagen descargue: así la galería no se reacomoda al ir llegando las
+        // imágenes. El CSS (w-full h-auto) ajusta ese tamaño al ancho de la
+        // columna; estos valores solo aportan la proporción. Los memes sin tamaño
+        // (null) se ven como antes.
+        width={meme.width ?? undefined}
+        height={meme.height ?? undefined}
+        // Las imágenes fuera de la pantalla no se descargan hasta que el usuario
+        // se acerca a ellas.
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setImageLoaded(true)}
+        // Si falla, igual se muestra (con el texto alternativo) en vez de quedar
+        // invisible para siempre.
+        onError={() => setImageLoaded(true)}
         // Altura máxima en la galería: las imágenes muy largas se recortan
         // (mostrando la parte de arriba, donde suele ir el texto del meme).
         // Al abrir el meme, el modal la muestra completa.
-        className="w-full h-auto max-h-[800px] object-cover object-top block"
-        decoding="async"
+        className={`block h-auto max-h-[800px] w-full object-cover object-top transition-opacity duration-500 motion-reduce:transition-none ${
+          imageLoaded ? "opacity-100" : "opacity-0"
+        }`}
       />
 
       {/* Borde de hover: va por encima de la imagen para que se vea igual en

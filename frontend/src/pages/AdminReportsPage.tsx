@@ -306,6 +306,7 @@ function MemeReportCard({
         <img
           src={meme.image}
           alt={meme.content || "Meme"}
+          loading="lazy"
           className="h-36 w-36 rounded-xl bg-gray-200 object-cover object-top dark:bg-gray-800 sm:h-40 sm:w-40"
         />
       </a>
@@ -466,6 +467,7 @@ function CommentReportCard({
           <img
             src={meme.image}
             alt={meme.content || "Meme"}
+            loading="lazy"
             className="h-24 w-24 rounded-xl bg-gray-200 object-cover object-top dark:bg-gray-800"
           />
         </a>

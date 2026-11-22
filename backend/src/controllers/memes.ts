@@ -13,7 +13,7 @@ import ReportModel, {
 } from "../models/report";
 import { withUser } from "../utils/middleware";
 import { buildPodium } from "../utils/podium";
-import { removeImage, saveImage, uploadImage } from "../utils/upload";
+import { removeImage, saveImageWithSize, uploadImage } from "../utils/upload";
 import { getCurrentWeek } from "../utils/week";
 import commentsRouter from "./comments";
 import reactionsRouter from "./reactions";
@@ -183,12 +183,15 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     return;
   }
 
-  const image = await saveImage(request.file.buffer);
+  // Se guarda el archivo y se lee su tamaño (puede ser null si no se pudo leer).
+  const { url: image, width, height } = await saveImageWithSize(request.file.buffer);
 
   try {
     const meme = new MemeModel({
       content,
       image,
+      width,
+      height,
       // El autor sale de la sesión, nunca de lo que mande el cliente.
       author: user.username,
       user: user._id,

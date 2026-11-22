@@ -65,6 +65,17 @@ npm run set-role -- <usuario> user      # quitarle el rol
 
 Usa la base de datos del `.env` (con `NODE_ENV=test`, la de pruebas). El backend lee el rol en cada petición, así que quitarlo rige al instante; en el navegador, el cambio se ve al recargar la página.
 
+**4. Calcular el tamaño de las imágenes de los memes anteriores** (una sola vez)
+
+Desde que se guarda el ancho y el alto de cada imagen (ver [Subida de imágenes](#subida-de-imágenes)), los memes nuevos ya lo traen. Los que se subieron antes no, y la galería no puede reservarles espacio hasta que se calcule:
+
+```bash
+cd backend
+npm run backfill-image-sizes
+```
+
+Lee los archivos de `backend/uploads/`, completa el tamaño en MongoDB y muestra cuántos actualizó y cuáles omitió (y por qué). Es seguro repetirlo y no modifica la fecha de edición de los memes. Usa la base de datos del `.env` (con `NODE_ENV=test`, la de pruebas).
+
 ## Cómo funciona el backend
 
 Código en `backend/src`:
@@ -82,7 +93,7 @@ controllers/
   login.ts              Login, sesión actual y logout
   testing.ts            Reinicio de la BD (solo con NODE_ENV=test)
 models/
-  memes.ts              Esquema del meme
+  memes.ts              Esquema del meme (incluye el tamaño de la imagen)
   comment.ts            Esquema del comentario y withAuthorAvatars (foto del autor)
   reaction.ts           Esquema de la reacción (like/dislike) y conteo de totales
   user.ts               Esquema del usuario (incluye carrera, foto de perfil y rol)
@@ -90,8 +101,10 @@ models/
   moderationLog.ts      Bitácora de moderación (quién hizo qué y por qué)
 scripts/
   setRole.ts            Asigna o quita el rol de admin (npm run set-role)
+  backfillImageSizes.ts Calcula el tamaño de las imágenes de memes antiguos (npm run backfill-image-sizes)
 utils/
   upload.ts             Subida y validación de imágenes (memes y fotos de perfil)
+  imageSize.ts          Lee el ancho y el alto de una imagen (JPG, PNG, GIF, WebP) de su cabecera, sin librerías
   podium.ts             Arma el podio a partir de los memes de la semana
   week.ts               Calcula la semana en curso (lunes a domingo, hora de Chile)
   middleware.ts         Autenticación (withUser, withAdmin), logger y manejo de errores
@@ -210,7 +223,8 @@ Al hacer `POST /api/memes` (o `PATCH /api/users/me` con una foto de perfil) el b
 2. Acepta una sola imagen JPG, PNG, WEBP o GIF de **máximo 2 MB** (si se pasa responde `413`).
 3. Verifica que el contenido real sea una imagen (no solo el tipo que declara el navegador).
 4. Guarda el archivo en `backend/uploads/` con un nombre aleatorio. En MongoDB solo se guarda la URL (`/uploads/<archivo>`), así la base de datos no crece con archivos pesados.
-5. Toma el autor de la sesión, no de lo que envía el cliente.
+5. Lee el **ancho y el alto** de la imagen directamente de su cabecera (`utils/imageSize.ts`, sin agregar librerías) y los guarda en el meme como `width` y `height`. Si el archivo trae **orientación EXIF** (lo normal en fotos de celular), el tamaño se guarda ya girado, tal como lo muestra el navegador: una foto guardada como 4000×3000 con orientación 6 se muestra de 3000×4000, y esa es la proporción que importa. Si no se puede leer (archivo dañado), el meme se guarda igual con `width` y `height` en `null`. Las fotos de perfil no guardan tamaño: siempre se muestran en un círculo.
+6. Toma el autor de la sesión, no de lo que envía el cliente.
 
 Al reemplazar o quitar una foto de perfil, la imagen anterior se borra del disco; al eliminar un meme, también se borra su imagen. La carpeta `uploads/` no está en git: hay que respaldarla junto con la base de datos.
 
@@ -276,7 +290,7 @@ types/                  Tipos de TypeScript
 
 - **Invitados:** ven la galería, los comentarios, el podio y los perfiles, y un botón "Iniciar sesión". Si tocan el botón `+` para subir un meme, los lleva al login (y aunque lo intentaran por otro lado, el backend responde `401`). En un meme, en lugar del cuadro para escribir ven un enlace "Inicia sesión para comentar", y si tocan like o dislike los lleva al login.
 - **Usuarios con sesión:** ven su nombre, su foto, "Cerrar sesión" y el botón `+`, y pueden comentar y dar like/dislike al abrir un meme o desde la tarjeta (el botón activo se muestra relleno). La sesión se recuerda al recargar la página (se guarda el nombre y el token CSRF en `localStorage`; la sesión real vive en la cookie) y se valida con el backend al abrir el sitio. La foto no se guarda en el navegador: se pide al backend en cada inicio o restauración de sesión.
-- **Galería:** columnas tipo Pinterest que se adaptan al ancho de la pantalla (columnas de ~18rem: 1 en celular, 4 en un notebook, 6 o más en un monitor ultrawide; el ancho máximo de la página es 2000 px, en `Home.tsx`), cada imagen con su proporción natural. Las imágenes muy largas se recortan a 800 px de alto en la tarjeta (`Meme.tsx`) y se ven completas al abrir el meme.
+- **Galería:** columnas tipo Pinterest que se adaptan al ancho de la pantalla (columnas de ~18rem: 1 en celular, 4 en un notebook, 6 o más en un monitor ultrawide; el ancho máximo de la página es 2000 px, en `Home.tsx`), cada imagen con su proporción natural. Las imágenes muy largas se recortan a 800 px de alto en la tarjeta (`Meme.tsx`) y se ven completas al abrir el meme. **Carga de imágenes:** las tarjetas usan `loading="lazy"` (el navegador no descarga las imágenes que están lejos de la pantalla hasta que el usuario se acerca) y reservan su alto desde el primer momento con los atributos `width` y `height` del meme (el navegador calcula la proporción), así la galería no se reacomoda al ir llegando las imágenes. Mientras una imagen carga se ve el fondo gris de la tarjeta y después aparece con un fundido. Los memes sin tamaño (`null`, ver `npm run backfill-image-sizes`) se ven como antes, sin reserva.
 - **Categorías y orden:** bajo el header hay un chip por carrera (ASTRO, DCC, DFI, GEOFI, GEO, DIC, DIMIN, DIE, IND, DIM, DIMEC, IQBM; el nombre completo sale al dejar el mouse encima). Cada chip se activa/desactiva al tocarlo y se pueden combinar varias (sin ninguna activa se ven todos los memes); se filtra por la carrera del **autor** del meme. El botón "Filtrar" alterna entre más nuevos primero (flecha hacia abajo) y más antiguos primero (flecha hacia arriba). El filtro y el orden los aplica el backend, y los textos cortos están en `DEPARTMENT_SHORT_NAMES` (`types/departments.ts`). Los usuarios antiguos con carrera "Sin especificar" solo aparecen sin filtro.
 - **Podio:** el ícono de la copa del header lleva a `/podio`. Muestra los 3 puestos de la semana como un podio (1.º al centro y más arriba). Un puesto con un solo meme abre el meme directo; con empate se muestra como una pila de tarjetas que abre una ventana con todos los empatados. Si el usuario reacciona a algo, el podio se vuelve a pedir al cerrar las ventanas (para no reordenar las tarjetas mientras mira un meme).
 - **Perfil (`/u/:username`):** muestra la foto (o la inicial del nombre), la carrera, la descripción y la cantidad de publicaciones. Las publicaciones usan el mismo formato de columnas que la galería, así que memes de distinto tamaño no dejan huecos. Por defecto se ven las últimas 3; el botón **"Mostrar todas (N)"** carga el resto (`GET /api/users/:username/memes`) y **"Mostrar menos"** vuelve a las últimas 3. El botón **"Reportar usuario"** del perfil ajeno abre el mismo formulario que los reportes de publicaciones y comentarios (un invitado va al login). Si la cuenta está baneada, el perfil muestra la etiqueta "Cuenta baneada" y el botón queda como "Usuario baneado". Los **admins** no ven "Reportar usuario": ven **"Banear usuario"** (pide un motivo) o, si ya está baneado, **"Desbanear usuario"**. El perfil no muestra contador de reportes: ese dato es solo para admins.
