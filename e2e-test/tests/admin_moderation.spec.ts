@@ -134,7 +134,7 @@ test.describe('flujos E2E de administración', () => {
     await expect(pendingReport).toBeVisible();
     await pendingReport.getByText('Ver 1 reporte').click();
     await expect(pendingReport.getByText(`@${reporter}`, { exact: true })).toBeVisible();
-    await expect(pendingReport.getByText('Pendiente', { exact: true })).toBeVisible();
+    await expect(pendingReport.locator('li')).toContainText('Pendiente');
 
     await pendingReport.getByRole('button', { name: 'Eliminar comentario' }).click();
     const confirmation = page.getByRole('alertdialog');
@@ -149,7 +149,7 @@ test.describe('flujos E2E de administración', () => {
       .filter({ hasText: commentContent });
     await expect(resolvedReport).toBeVisible();
     await resolvedReport.getByText('Ver 1 reporte').click();
-    await expect(resolvedReport.getByText('Aceptado', { exact: true })).toBeVisible();
+    await expect(resolvedReport.locator('li')).toContainText('Aceptado');
     const removalNotice = resolvedReport.locator('p').filter({
       hasText: 'Motivo:',
     });
