@@ -127,7 +127,7 @@ const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) =
           >
             Reportar
           </h2>
-          <button
+          {!sent && <button
             type="button"
             onClick={onClose}
             disabled={submitting}
@@ -135,7 +135,7 @@ const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) =
             aria-label="Cerrar"
           >
             <CloseIcon />
-          </button>
+          </button>}
         </div>
 
         {sent ? (
