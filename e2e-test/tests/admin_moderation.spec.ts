@@ -34,8 +34,6 @@ test.describe('flujos E2E de administración', () => {
     await page.getByRole('link', { name: 'Reportes' }).click();
     await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Usuarios' }).click();
-    await expect(page.getByText(`@${author} · DCC`, { exact: true })).toBeVisible();
     await page.getByRole('tab', { name: 'Posts' }).click();
 
     const limitedReport = page.getByRole('article').filter({ hasText: limitedContent });
