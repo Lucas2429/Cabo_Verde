@@ -34,7 +34,7 @@ export class InvalidImageError extends Error {
 // nada a disco.
 export const uploadImage = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_IMAGE_SIZE, files: 1, fields: 5 },
+  limits: { fileSize: MAX_IMAGE_SIZE, files: 1, fields: 30 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);

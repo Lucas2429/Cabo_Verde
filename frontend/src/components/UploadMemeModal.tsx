@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import memeService from "../services/meme";
+import type { Department } from "../types/departments";
 import type { MemesData } from "../types/memesData";
 import { ACCEPT_ATTR, MAX_IMAGE_MB, validateImage } from "../utils/image";
+import { withPendingTag } from "../utils/tags";
+import MemeTagsField from "./MemeTagsField";
 
 const MAX_CONTENT_LENGTH = 300;
 
@@ -39,6 +42,10 @@ const UploadMemeModal = ({
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [content, setContent] = useState("");
+  // Etiqueta especial de carrera (opcional) y hashtags libres.
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,10 +88,20 @@ const UploadMemeModal = ({
       return;
     }
 
+    // Si quedó un hashtag escrito sin confirmar, se incluye al publicar.
+    const result = withPendingTag(tags, tagInput);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
-      const meme = await memeService.create(content.trim(), image);
+      const meme = await memeService.create(content.trim(), image, {
+        departments,
+        tags: result.tags,
+      });
       onCreated(meme);
       onClose();
     } catch (err) {
@@ -123,9 +140,7 @@ const UploadMemeModal = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <span className="field-label">
-              Imagen
-            </span>
+            <span className="field-label">Imagen</span>
             <input
               id="meme-image"
               type="file"
@@ -154,10 +169,7 @@ const UploadMemeModal = ({
           </div>
 
           <div>
-            <label
-              htmlFor="meme-content"
-              className="field-label"
-            >
+            <label htmlFor="meme-content" className="field-label">
               Descripción
             </label>
             <input
@@ -173,6 +185,17 @@ const UploadMemeModal = ({
               {content.length}/{MAX_CONTENT_LENGTH}
             </span>
           </div>
+
+          <MemeTagsField
+            departments={departments}
+            onDepartmentsChange={setDepartments}
+            tags={tags}
+            onTagsChange={setTags}
+            tagInput={tagInput}
+            onTagInputChange={setTagInput}
+            onError={setError}
+            inputId="meme-tags"
+          />
 
           {error && (
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">

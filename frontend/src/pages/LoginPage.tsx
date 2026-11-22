@@ -149,6 +149,7 @@ function LoginPage() {
               Usuario
             </label>
             <input
+              data-testid="username"
               id="username"
               type="text"
               value={username}
@@ -182,6 +183,7 @@ function LoginPage() {
               Contraseña
             </label>
             <input
+              data-testid="password"
               id="password"
               type="password"
               value={password}
@@ -216,6 +218,7 @@ function LoginPage() {
           )}
 
           <button
+            data-testid="login-button"
             type="submit"
             disabled={submitting}
             className="btn-primary w-full"

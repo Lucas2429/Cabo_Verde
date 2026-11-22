@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { DEPARTMENTS } from "./user";
 
 export interface MemeData {
   content: string;
@@ -12,6 +13,8 @@ export interface MemeData {
   // backfill-image-sizes`) y cuando no se pudo leer del archivo.
   width: number | null;
   height: number | null;
+  departments: string[];   
+  tags: string[];   
   user: mongoose.Types.ObjectId;
   // true si un admin limitó los comentarios: el meme y sus comentarios se
   // siguen viendo, pero nadie puede comentar ni responder más.
@@ -34,6 +37,8 @@ const memeSchema = new mongoose.Schema<MemeData>(
     image: { type: String, required: true },
     width: { type: Number, default: null, min: 1 },
     height: { type: Number, default: null, min: 1 },
+    departments: [{ type: String, enum: [...DEPARTMENTS] }],
+    tags: [{ type: String, maxlength: 30 }],
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     commentsLocked: { type: Boolean, default: false },
     removedAt: { type: Date, default: null },
@@ -45,6 +50,9 @@ const memeSchema = new mongoose.Schema<MemeData>(
   }
 );
 
+memeSchema.index({ departments: 1, createdAt: -1 });
+// para filtrar por etiqueta sin recorrer toda la colección
+memeSchema.index({ tags: 1, createdAt: -1 });
 // Para listar los memes de un perfil (los más recientes primero) sin recorrer
 // toda la colección.
 memeSchema.index({ user: 1, createdAt: -1 });

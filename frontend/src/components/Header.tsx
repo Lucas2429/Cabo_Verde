@@ -138,14 +138,18 @@ function Header({ onLogout }: Props) {
           </>
         ) : (
           <>
-            <Link to="/login" className="btn-primary hidden !px-5 !py-2 sm:inline-flex">
+            <Link
+              to="/login"
+              data-testid="login-link"
+              title="Iniciar sesión"
+              aria-label="Iniciar sesión"
+              className="hidden sm:inline text-sm font-medium hover:underline"
+            >
               Iniciar sesión
             </Link>
             <Link
               to="/login"
-              title="Iniciar sesión"
-              aria-label="Iniciar sesión"
-              className="text-4xl leading-none text-indigo-600 transition-opacity hover:opacity-80 dark:text-indigo-400 sm:hidden"
+              className="text-5xl md:text-6xl leading-none hover:opacity-80 transition-opacity"
             >
               <AccountCircleIcon fontSize="inherit" />
             </Link>

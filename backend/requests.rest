@@ -351,3 +351,235 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 ### Eliminar lógicamente un comentario propio
 DELETE http://localhost:3001/api/memes/<ID_DEL_MEME>/comments/<ID_DEL_COMENTARIO>
 X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+
+### TEST 1 - Meme con carrera + hashtags (debe responder 201)
+# Esperado en la respuesta: "departments": ["Geología"], "tags": ["parcial","mechon"]
+# Nota: "#Parcial" llega con # y mayúscula, y debe guardarse como "parcial".
+POST http://localhost:3001/api/memes
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Meme de prueba con etiquetas
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="departments"
+
+Geología
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+Parcial
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+mechon
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="meme.png"
+Content-Type: image/png
+
+< ./meme.png
+------CaboVerdeBoundary--
+
+### TEST 2 - Sin etiquetas (debe seguir funcionando, 201)
+# Esperado: "departments": [], "tags": []
+POST http://localhost:3001/api/memes
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Meme sin etiquetas
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="meme.png"
+Content-Type: image/png
+
+< ./meme.png
+------CaboVerdeBoundary--
+
+### TEST 3 - Carrera inválida (debe responder 400 "departments must be among...")
+POST http://localhost:3001/api/memes
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Carrera que no existe
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="departments"
+
+Brujería
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="meme.png"
+Content-Type: image/png
+
+< ./meme.png
+------CaboVerdeBoundary--
+
+### TEST 4 - Hashtag inválido con espacio (debe responder 400 "each tag must be...")
+POST http://localhost:3001/api/memes
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Hashtag malo
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+hola mundo
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="meme.png"
+Content-Type: image/png
+
+< ./meme.png
+------CaboVerdeBoundary--
+
+### TEST 5 - Más de 5 hashtags (debe responder 400 "at most 5 tags allowed")
+POST http://localhost:3001/api/memes
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: multipart/form-data; boundary=----CaboVerdeBoundary
+
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="content"
+
+Demasiados tags
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+uno
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+dos
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+tres
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+cuatro
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+cinco
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="tags"
+
+seis
+------CaboVerdeBoundary
+Content-Disposition: form-data; name="image"; filename="meme.png"
+Content-Type: image/png
+
+< ./meme.png
+------CaboVerdeBoundary--
+
+### TEST 6 - Filtro por carrera etiquetada (debe incluir el meme del TEST 1)
+# Aunque "root" sea de DCC, este meme sale en Geología por su etiqueta.
+GET http://localhost:3001/api/memes?department=Geología
+
+### TEST 7 - Filtro por la carrera del autor (debe incluir TODOS los memes de root)
+# Si root es de DCC: salen los TESTS 1 y 2 aunque no tengan etiqueta DCC.
+GET http://localhost:3001/api/memes?department=DCC
+
+### TEST 8 - Filtro con dos carreras a la vez (une ambos resultados)
+GET http://localhost:3001/api/memes?department=Geología&department=Física
+
+### TEST 9 - Sin filtro (debe devolver todo)
+GET http://localhost:3001/api/memes
+
+### TEST 10 - Hashtags existentes, más usados primero
+GET http://localhost:3001/api/memes/tags
+
+### TEST 11 - Buscar hashtags que empiezan con "un"
+GET http://localhost:3001/api/memes/tags?q=un
+
+### TEST 12 - Memes con un hashtag (cambia "uno" por uno que exista)
+GET http://localhost:3001/api/memes?tag=uno
+
+### TEST 13 - Con # codificado (%23) y mayúscula -> mismo resultado que el 12
+GET http://localhost:3001/api/memes?tag=%23UNO
+
+### TEST 14 - Dos hashtags (Y): solo memes que tengan AMBOS
+# Esperado: solo los memes con #uno Y #dos. Los que tengan uno solo, no salen.
+GET http://localhost:3001/api/memes?tag=uno&tag=dos
+
+### TEST 15 - Un hashtag que no existe junto a uno que sí -> lista vacía []
+GET http://localhost:3001/api/memes?tag=uno&tag=noexiste
+
+### TEST 16 - Carrera + hashtag (Y): de DCC Y con el hashtag
+GET http://localhost:3001/api/memes?department=DCC&tag=uno
+
+### TEST 17 - Hashtag inválido -> 400
+GET http://localhost:3001/api/memes?tag=hola!
+
+### TEST 18 - Editar descripción y etiquetas de un meme propio (debe responder 200)
+# Esperado: "departments": ["Geología"], "tags": ["parcial","editado"]
+# ("#Parcial" y "Editado" se normalizan igual que al subir.)
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Meme editado",
+  "departments": ["Geología"],
+  "tags": ["#Parcial", "Editado"]
+}
+
+### TEST 19 - Editar SOLO la descripción (las etiquetas deben quedar intactas)
+# Esperado: 200, y departments y tags iguales a los del TEST 18.
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Solo cambio la descripción"
+}
+
+### TEST 20 - Quitar todas las etiquetas (arreglos vacíos)
+# Esperado: 200, con "departments": [] y "tags": [].
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Sin etiquetas",
+  "departments": [],
+  "tags": []
+}
+
+### TEST 21 - Carrera inválida (debe responder 400 "departments must be among...")
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Carrera mala",
+  "departments": ["Brujería"]
+}
+
+### TEST 22 - Hashtag inválido (debe responder 400 "each tag must be...")
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Hashtag malo",
+  "tags": ["hola mundo"]
+}
+
+### TEST 23 - Más de 5 hashtags (debe responder 400 "at most 5 tags allowed")
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Demasiados",
+  "tags": ["a", "b", "c", "d", "e", "f"]
+}
