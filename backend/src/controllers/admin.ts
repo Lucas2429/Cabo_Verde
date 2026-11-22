@@ -4,9 +4,15 @@ import CommentModel from "../models/comment";
 import MemeModel from "../models/memes";
 import ModerationLogModel, {
   type ModerationAction,
+  type ModerationLogData,
 } from "../models/moderationLog";
 import { withReactionCounts } from "../models/reaction";
-import ReportModel, { type ReportStatus } from "../models/report";
+import ReportModel, {
+  REPORT_ALERT_THRESHOLD,
+  type ReportData,
+  type ReportStatus,
+  type ReportTargetType,
+} from "../models/report";
 import User from "../models/user";
 import { withAdmin } from "../utils/middleware";
 
@@ -17,18 +23,20 @@ router.use(withAdmin);
 
 const MAX_REASON_LENGTH = 200;
 const MIN_REASON_LENGTH = 3;
-// Cuántos contenidos (o usuarios) como máximo devuelve cada lista, y cuántos
-// reportes se revisan para armarla.
+// Cuántos contenidos (o usuarios) como máximo devuelve cada lista.
 const MAX_ITEMS = 100;
-const MAX_REPORTS_SCANNED = 1000;
 
 const NO_AUTHOR = "[usuario eliminado]";
+
+type StatusFilter = { status: ReportStatus | { $in: ReportStatus[] } };
+type ReportDoc = mongoose.HydratedDocument<ReportData>;
 
 // ---------------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------------
 
-// Motivo escrito por el admin al eliminar algo. Queda guardado como evidencia.
+// Motivo escrito por el admin al eliminar algo o banear a alguien. Queda
+// guardado como evidencia.
 const parseReason = (body: unknown): { reason: string } | { error: string } => {
   const raw = (body as { reason?: unknown } | undefined)?.reason;
   const reason = typeof raw === "string" ? raw.trim() : "";
@@ -41,9 +49,7 @@ const parseReason = (body: unknown): { reason: string } | { error: string } => {
 };
 
 // ?status=pending (por defecto) o resolved (aceptados y descartados).
-const parseStatusFilter = (
-  value: unknown
-): { status: ReportStatus | { $in: ReportStatus[] } } | null => {
+const parseStatusFilter = (value: unknown): StatusFilter | null => {
   if (value === undefined || value === "pending") return { status: "pending" };
   if (value === "resolved") return { status: { $in: ["accepted", "dismissed"] } };
   return null;
@@ -60,7 +66,7 @@ const groupBy = <T>(items: T[], key: (item: T) => string): Map<string, T[]> => {
 };
 
 // Nombres de usuario a partir de sus ids (para mostrar quién reportó, quién
-// eliminó, etc.).
+// eliminó o baneó, etc.).
 const usernamesById = async (
   ids: (mongoose.Types.ObjectId | null | undefined)[]
 ): Promise<Map<string, string>> => {
@@ -71,8 +77,8 @@ const usernamesById = async (
   return new Map(users.map((user) => [user._id.toString(), user.username]));
 };
 
-// Un admin no puede moderar contenido de otro admin (ni el propio): si lo
-// necesita, lo borra como cualquier usuario. Devuelve true si el autor es admin.
+// Un admin no puede moderar a otro admin ni su contenido (ni el propio): si lo
+// necesita, lo borra como cualquier usuario. Devuelve true si el usuario es admin.
 const isAdminContent = async (authorId: mongoose.Types.ObjectId): Promise<boolean> => {
   const author = await User.findById(authorId, "role");
   return author?.role === "admin";
@@ -81,24 +87,64 @@ const isAdminContent = async (authorId: mongoose.Types.ObjectId): Promise<boolea
 const logAction = (data: {
   admin: string | undefined;
   action: ModerationAction;
-  targetType: "meme" | "comment";
-  meme: mongoose.Types.ObjectId;
+  targetType: ModerationLogData["targetType"];
+  meme?: mongoose.Types.ObjectId | null;
   comment?: mongoose.Types.ObjectId | null;
   targetUser: mongoose.Types.ObjectId;
   reason?: string | null;
 }) =>
   ModerationLogModel.create({
+    meme: null,
     comment: null,
     reason: null,
     ...data,
   });
 
+// Ids de los contenidos (o usuarios) más reportados, de más a menos reportes (en
+// empate, primero el que recibió un reporte más reciente). El orden y el tope de
+// MAX_ITEMS se aplican en la base de datos, ANTES de traer los reportes: así lo
+// que tiene más reportes nunca queda fuera por ser antiguo. El _id es solo un
+// desempate para que el orden sea estable. `field` es el campo que identifica lo
+// reportado ("$meme", "$comment" o "$targetUser").
+const rankReported = async (
+  targetType: ReportTargetType,
+  field: string,
+  statusFilter: StatusFilter
+): Promise<string[]> => {
+  const ranking = await ReportModel.aggregate<{ _id: mongoose.Types.ObjectId }>([
+    { $match: { targetType, ...statusFilter } },
+    { $group: { _id: field, count: { $sum: 1 }, latest: { $max: "$createdAt" } } },
+    { $sort: { count: -1, latest: -1, _id: 1 } },
+    { $limit: MAX_ITEMS },
+  ]);
+  return ranking.map((row) => row._id.toString());
+};
+
+const serializeReports = (reports: ReportDoc[], usernames: Map<string, string>) =>
+  reports.map((report) => ({
+    id: report.id as string,
+    reason: report.reason,
+    details: report.details,
+    status: report.status,
+    reporter: usernames.get(report.reporter.toString()) ?? NO_AUTHOR,
+    createdAt: report.createdAt,
+  }));
+
+// Un contenido (o usuario) está "en alerta" si sigue activo y llegó al umbral de
+// reportes PENDIENTES. Es la única definición: el frontend solo muestra el
+// resultado (`inAlert`) y el umbral que entrega /reports/alerts.
+const isInAlert = (reports: ReportDoc[], stillActive: boolean): boolean =>
+  stillActive &&
+  reports.filter((report) => report.status === "pending").length >=
+    REPORT_ALERT_THRESHOLD;
+
 // ---------------------------------------------------------------------------
 // Listas de reportes
 // ---------------------------------------------------------------------------
 
-// Posts reportados, agrupados: una fila por post con todos sus reportes. Los
-// que tuvieron el reporte más reciente van primero.
+// Posts reportados, agrupados: una fila por post con todos sus reportes. Van de
+// los que tienen MÁS reportes a los que tienen menos. Con ?status=pending se
+// cuentan solo los reportes pendientes; con resolved, los ya resueltos.
 router.get("/reports/memes", async (request, response) => {
   const statusFilter = parseStatusFilter(request.query.status);
   if (!statusFilter) {
@@ -106,11 +152,14 @@ router.get("/reports/memes", async (request, response) => {
     return;
   }
 
-  const reports = await ReportModel.find({ targetType: "meme", ...statusFilter })
-    .sort({ createdAt: -1 })
-    .limit(MAX_REPORTS_SCANNED);
-  const groups = groupBy(reports, (report) => report.meme.toString());
-  const memeIds = [...groups.keys()].slice(0, MAX_ITEMS);
+  const memeIds = await rankReported("meme", "$meme", statusFilter);
+
+  const reports = await ReportModel.find({
+    targetType: "meme",
+    meme: { $in: memeIds },
+    ...statusFilter,
+  }).sort({ createdAt: -1 });
+  const groups = groupBy(reports, (report) => String(report.meme));
 
   // Los memes eliminados también se ven acá: es donde los admins revisan lo que
   // se resolvió.
@@ -131,6 +180,7 @@ router.get("/reports/memes", async (request, response) => {
     const meme = serialized.get(memeId);
     const raw = rawMemes.get(memeId);
     if (!meme || !raw) return [];
+    const memeReports = groups.get(memeId) ?? [];
     return [
       {
         meme,
@@ -141,14 +191,8 @@ router.get("/reports/memes", async (request, response) => {
               reason: raw.removalReason,
             }
           : null,
-        reports: (groups.get(memeId) ?? []).map((report) => ({
-          id: report.id as string,
-          reason: report.reason,
-          details: report.details,
-          status: report.status,
-          reporter: usernames.get(report.reporter.toString()) ?? NO_AUTHOR,
-          createdAt: report.createdAt,
-        })),
+        inAlert: isInAlert(memeReports, !raw.removedAt),
+        reports: serializeReports(memeReports, usernames),
       },
     ];
   });
@@ -156,9 +200,9 @@ router.get("/reports/memes", async (request, response) => {
   response.json({ items });
 });
 
-// Comentarios reportados, agrupados igual que los posts. Aquí SÍ se entrega el
-// texto original del comentario (aunque ya esté eliminado), porque es la
-// evidencia que revisa el admin.
+// Comentarios reportados, agrupados igual que los posts y en el mismo orden (de
+// más a menos reportes). Aquí SÍ se entrega el texto original del comentario
+// (aunque ya esté eliminado), porque es la evidencia que revisa el admin.
 router.get("/reports/comments", async (request, response) => {
   const statusFilter = parseStatusFilter(request.query.status);
   if (!statusFilter) {
@@ -166,11 +210,14 @@ router.get("/reports/comments", async (request, response) => {
     return;
   }
 
-  const reports = await ReportModel.find({ targetType: "comment", ...statusFilter })
-    .sort({ createdAt: -1 })
-    .limit(MAX_REPORTS_SCANNED);
+  const commentIds = await rankReported("comment", "$comment", statusFilter);
+
+  const reports = await ReportModel.find({
+    targetType: "comment",
+    comment: { $in: commentIds },
+    ...statusFilter,
+  }).sort({ createdAt: -1 });
   const groups = groupBy(reports, (report) => String(report.comment));
-  const commentIds = [...groups.keys()].slice(0, MAX_ITEMS);
 
   const comments = await CommentModel.find({ _id: { $in: commentIds } });
   const memes = await MemeModel.find({
@@ -187,6 +234,7 @@ router.get("/reports/comments", async (request, response) => {
     const comment = rawComments.get(commentId);
     if (!comment) return [];
     const meme = memesById.get(comment.meme.toString());
+    const commentReports = groups.get(commentId) ?? [];
     return [
       {
         comment: {
@@ -213,14 +261,8 @@ router.get("/reports/comments", async (request, response) => {
               reason: comment.removalReason,
             }
           : null,
-        reports: (groups.get(commentId) ?? []).map((report) => ({
-          id: report.id as string,
-          reason: report.reason,
-          details: report.details,
-          status: report.status,
-          reporter: usernames.get(report.reporter.toString()) ?? NO_AUTHOR,
-          createdAt: report.createdAt,
-        })),
+        inAlert: isInAlert(commentReports, !comment.removedAt && !comment.deletedAt),
+        reports: serializeReports(commentReports, usernames),
       },
     ];
   });
@@ -228,50 +270,91 @@ router.get("/reports/comments", async (request, response) => {
   response.json({ items });
 });
 
-// Usuarios con reportes. Se separan los reportes `pending` (sin revisar) de los
-// `accepted` (un admin eliminó el contenido): así reportes falsos que se
-// descartan no manchan a nadie. Los descartados no cuentan. Primero los usuarios
-// con más reportes aceptados.
-router.get("/reports/users", async (_request, response) => {
-  const rows = await ReportModel.aggregate<{
-    _id: mongoose.Types.ObjectId;
-    pending: number;
-    accepted: number;
-  }>([
-    { $match: { status: { $in: ["pending", "accepted"] } } },
-    {
-      $group: {
-        _id: "$targetUser",
-        pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
-        accepted: { $sum: { $cond: [{ $eq: ["$status", "accepted"] }, 1, 0] } },
-      },
-    },
-    { $sort: { accepted: -1, pending: -1 } },
-    { $limit: MAX_ITEMS },
-  ]);
+// Usuarios reportados, agrupados igual que los posts y comentarios y en el mismo
+// orden (de más a menos reportes). Un usuario baneado aparece con los datos del
+// baneo (`ban`): sus reportes ya están resueltos, así que se ve en "resolved".
+router.get("/reports/users", async (request, response) => {
+  const statusFilter = parseStatusFilter(request.query.status);
+  if (!statusFilter) {
+    response.status(400).json({ error: "status must be pending or resolved" });
+    return;
+  }
+
+  const userIds = await rankReported("user", "$targetUser", statusFilter);
+
+  const reports = await ReportModel.find({
+    targetType: "user",
+    targetUser: { $in: userIds },
+    ...statusFilter,
+  }).sort({ createdAt: -1 });
+  const groups = groupBy(reports, (report) => String(report.targetUser));
 
   const users = await User.find(
-    { _id: { $in: rows.map((row) => row._id) } },
-    "username displayName avatar department"
+    { _id: { $in: userIds } },
+    "username displayName avatar department bannedAt bannedBy banReason"
   );
   const usersById = new Map(users.map((user) => [user._id.toString(), user]));
+  const usernames = await usernamesById([
+    ...reports.map((report) => report.reporter),
+    ...users.map((user) => user.bannedBy),
+  ]);
 
-  const items = rows.flatMap((row) => {
-    const user = usersById.get(row._id.toString());
+  const items = userIds.flatMap((userId) => {
+    const user = usersById.get(userId);
     if (!user) return [];
+    const userReports = groups.get(userId) ?? [];
     return [
       {
-        username: user.username,
-        displayName: user.displayName || user.username,
-        avatar: user.avatar ?? null,
-        department: user.department,
-        pending: row.pending,
-        accepted: row.accepted,
+        user: {
+          username: user.username,
+          displayName: user.displayName || user.username,
+          avatar: user.avatar ?? null,
+          department: user.department,
+        },
+        ban: user.bannedAt
+          ? {
+              at: user.bannedAt,
+              by: user.bannedBy
+                ? usernames.get(user.bannedBy.toString()) ?? NO_AUTHOR
+                : NO_AUTHOR,
+              reason: user.banReason ?? null,
+            }
+          : null,
+        inAlert: isInAlert(userReports, !user.bannedAt),
+        reports: serializeReports(userReports, usernames),
       },
     ];
   });
 
   response.json({ items });
+});
+
+// Cuántos contenidos están "en alerta": los que tienen REPORT_ALERT_THRESHOLD o
+// más reportes PENDIENTES, contados por tipo (posts, comentarios y usuarios). El
+// header de los admins muestra una marca en el botón de reportes cuando alguno es
+// mayor que 0. Solo cuentan los pendientes: lo ya resuelto no necesita revisión.
+// También entrega el umbral, para que el frontend no lo tenga duplicado.
+const countInAlert = async (
+  targetType: ReportTargetType,
+  field: string
+): Promise<number> => {
+  const [row] = await ReportModel.aggregate<{ total: number }>([
+    { $match: { targetType, status: "pending" } },
+    { $group: { _id: field, count: { $sum: 1 } } },
+    { $match: { count: { $gte: REPORT_ALERT_THRESHOLD } } },
+    { $count: "total" },
+  ]);
+  return row?.total ?? 0;
+};
+
+router.get("/reports/alerts", async (_request, response) => {
+  const [memes, comments, users] = await Promise.all([
+    countInAlert("meme", "$meme"),
+    countInAlert("comment", "$comment"),
+    countInAlert("user", "$targetUser"),
+  ]);
+
+  response.json({ threshold: REPORT_ALERT_THRESHOLD, memes, comments, users });
 });
 
 // ---------------------------------------------------------------------------
@@ -380,7 +463,7 @@ router.put("/memes/:id/comments-lock", async (request, response) => {
 });
 
 // Descarta los reportes pendientes de un post: un admin lo revisó y decidió no
-// actuar. Los reportes descartados no cuentan en el total de reportes del autor.
+// actuar.
 router.post("/memes/:id/dismiss-reports", async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) {
     response.status(400).json({ error: "invalid meme id" });
@@ -503,6 +586,122 @@ router.post("/comments/:id/dismiss-reports", async (request, response) => {
 });
 
 // ---------------------------------------------------------------------------
+// Acciones sobre usuarios
+// ---------------------------------------------------------------------------
+
+// Banea a un usuario: la cuenta deja de poder iniciar sesión y cualquier sesión
+// que tuviera abierta se corta al instante (lo hace `withUser`, que consulta el
+// baneo en cada petición). Al intentar entrar ve un aviso de que fue baneado.
+// Sus memes y comentarios no se tocan (para eso están las acciones sobre cada
+// contenido). Los reportes pendientes contra él pasan a "accepted".
+// Espera JSON con: reason (3 a 200 caracteres), solo visible para los admins.
+// Responde 403 si el usuario es admin (nadie puede banear a un admin), 409 si ya
+// estaba baneado.
+router.post("/users/:username/ban", async (request, response) => {
+  const parsed = parseReason(request.body);
+  if ("error" in parsed) {
+    response.status(400).json({ error: parsed.error });
+    return;
+  }
+
+  const user = await User.findOne({ username: request.params.username }, "role bannedAt");
+  if (!user) {
+    response.status(404).json({ error: "user not found" });
+    return;
+  }
+  if (user.role === "admin") {
+    response.status(403).json({ error: "you cannot moderate an admin" });
+    return;
+  }
+  if (user.bannedAt) {
+    response.status(409).json({ error: "user already banned" });
+    return;
+  }
+
+  const now = new Date();
+  // updateOne (y no save) para no revalidar el documento entero: aquí solo
+  // cambian los campos del baneo.
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        bannedAt: now,
+        bannedBy: new mongoose.Types.ObjectId(request.userId),
+        banReason: parsed.reason,
+      },
+    }
+  );
+
+  await Promise.all([
+    ReportModel.updateMany(
+      { targetType: "user", targetUser: user._id, status: "pending" },
+      { status: "accepted", resolvedBy: request.userId, resolvedAt: now }
+    ),
+    logAction({
+      admin: request.userId,
+      action: "ban_user",
+      targetType: "user",
+      targetUser: user._id,
+      reason: parsed.reason,
+    }),
+  ]);
+
+  response.json({ banned: true });
+});
+
+// Levanta el baneo de un usuario: puede volver a iniciar sesión. Sus reportes
+// aceptados quedan como están (son el historial). Responde 409 si no estaba
+// baneado.
+router.post("/users/:username/unban", async (request, response) => {
+  const user = await User.findOne({ username: request.params.username }, "bannedAt");
+  if (!user) {
+    response.status(404).json({ error: "user not found" });
+    return;
+  }
+  if (!user.bannedAt) {
+    response.status(409).json({ error: "user is not banned" });
+    return;
+  }
+
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { bannedAt: null, bannedBy: null, banReason: null } }
+  );
+  await logAction({
+    admin: request.userId,
+    action: "unban_user",
+    targetType: "user",
+    targetUser: user._id,
+  });
+
+  response.json({ banned: false });
+});
+
+// Descarta los reportes pendientes de un usuario (el admin decidió no actuar).
+router.post("/users/:username/dismiss-reports", async (request, response) => {
+  const user = await User.findOne({ username: request.params.username }, "_id");
+  if (!user) {
+    response.status(404).json({ error: "user not found" });
+    return;
+  }
+
+  const result = await ReportModel.updateMany(
+    { targetType: "user", targetUser: user._id, status: "pending" },
+    { status: "dismissed", resolvedBy: request.userId, resolvedAt: new Date() }
+  );
+  if (result.modifiedCount > 0) {
+    await logAction({
+      admin: request.userId,
+      action: "dismiss_reports",
+      targetType: "user",
+      targetUser: user._id,
+    });
+  }
+
+  response.json({ dismissed: result.modifiedCount });
+});
+
+// ---------------------------------------------------------------------------
 // Bitácora
 // ---------------------------------------------------------------------------
 
@@ -521,7 +720,8 @@ router.get("/log", async (_request, response) => {
       id: entry.id as string,
       action: entry.action,
       targetType: entry.targetType,
-      memeId: entry.meme.toString(),
+      // Null en las acciones sobre usuarios (no hay meme de por medio).
+      memeId: entry.meme?.toString() ?? null,
       commentId: entry.comment?.toString() ?? null,
       admin: usernames.get(entry.admin.toString()) ?? NO_AUTHOR,
       targetUser: usernames.get(entry.targetUser.toString()) ?? NO_AUTHOR,

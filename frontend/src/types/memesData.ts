@@ -7,6 +7,13 @@ export type MemesData = {
   content: string;
   author: string;
   image: string;
+  // Tamaño de la imagen en píxeles (ya con la orientación EXIF aplicada). Se
+  // usa para reservar el espacio de la tarjeta antes de que la imagen cargue. Es
+  // null en los memes anteriores a esta función cuyo tamaño todavía no se calculó
+  // (npm run backfill-image-sizes en el backend); en ese caso la tarjeta se ve
+  // como antes, sin reserva.
+  width: number | null;
+  height: number | null;
   // Etiqueta especial de carrera (opcional al subir el meme).
   departments: Department[];
   // Hashtags libres, sin "#" y en minúscula (ej. "parcial").

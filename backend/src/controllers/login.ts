@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import express from "express";
 import User from "../models/user";
 import config from "../utils/config";
-import { withUser } from "../utils/middleware";
+import { BANNED_ERROR, withUser } from "../utils/middleware";
 
 const router = express.Router();
 
@@ -17,6 +17,14 @@ router.post("/", async (request, response) => {
 
   if (!user || !passwordCorrect) {
     response.status(401).json({ error: "invalid username or password" });
+    return;
+  }
+
+  // Una cuenta baneada no puede iniciar sesión. Se avisa solo después de
+  // validar la contraseña: así nadie puede averiguar quiénes están baneados
+  // probando nombres de usuario.
+  if (user.bannedAt) {
+    response.status(403).json(BANNED_ERROR);
     return;
   }
 

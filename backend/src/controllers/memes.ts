@@ -7,10 +7,13 @@ import ReactionModel, {
   type ReactionType,
 } from "../models/reaction";
 import User, { DEPARTMENTS } from "../models/user";
-import ReportModel from "../models/report";
+import ReportModel, {
+  PENDING_REPORTS_ERROR,
+  memeHasPendingReports,
+} from "../models/report";
 import { withUser } from "../utils/middleware";
 import { buildPodium } from "../utils/podium";
-import { removeImage, saveImage, uploadImage } from "../utils/upload";
+import { removeImage, saveImageWithSize, uploadImage } from "../utils/upload";
 import { getCurrentWeek } from "../utils/week";
 import commentsRouter from "./comments";
 import reactionsRouter from "./reactions";
@@ -192,6 +195,32 @@ router.get("/reactions/mine", withUser, async (request, response) => {
   response.json(mine);
 });
 
+// Solo usuarios con sesión: el contenido PROPIO que tiene reportes pendientes,
+// como { memes: [ids], comments: [ids] }. Mientras un admin no los resuelva, el
+// autor no puede editar ni eliminar ese contenido (lo exigen PATCH y DELETE de
+// memes y comentarios); el frontend usa esta lista para deshabilitar los botones
+// y explicar por qué. Solo se le entrega al propio autor.
+// Va antes de "/:id" para que "under-review" no se confunda con un id.
+router.get("/under-review/mine", withUser, async (request, response) => {
+  const reports = await ReportModel.find(
+    { targetUser: request.userId, status: "pending" },
+    "targetType meme comment"
+  );
+
+  const memes = new Set<string>();
+  const comments = new Set<string>();
+  for (const report of reports) {
+    // Los reportes de usuario (targetType "user") no tienen meme ni comentario y
+    // no bloquean nada: solo cuentan los de memes y comentarios.
+    if (report.targetType === "meme" && report.meme) {
+      memes.add(report.meme.toString());
+    } else if (report.targetType === "comment" && report.comment) {
+      comments.add(report.comment.toString());
+    }
+  }
+  response.json({ memes: [...memes], comments: [...comments] });
+});
+
 // Público: podio de la semana en curso (de lunes a domingo, hora de Chile). Son
 // los memes publicados esta semana con más likes; los empates comparten puesto.
 // Responde { weekStart, weekEnd, podium: [{ position, likes, memes: [...] }] }.
@@ -261,12 +290,15 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     return;
   }
 
-  const image = await saveImage(request.file.buffer);
+  // Se guarda el archivo y se lee su tamaño (puede ser null si no se pudo leer).
+  const { url: image, width, height } = await saveImageWithSize(request.file.buffer);
 
   try {
     const meme = new MemeModel({
       content,
       image,
+      width,
+      height,
       departments: memeDepartments,
       tags,
       // El autor sale de la sesión, nunca de lo que mande el cliente.
@@ -289,7 +321,8 @@ router.post("/", withUser, uploadImage, async (request, response) => {
 //   - content:     nueva descripción (1 a 300 caracteres)
 //   - departments: (opcional) carreras del meme; si viene, reemplaza las actuales
 //   - tags:        (opcional) hashtags del meme; si viene, reemplaza los actuales
-// Responde 404 si el meme no existe y 403 si es de otro usuario.
+// Responde 404 si el meme no existe y 403 si es de otro usuario y 409 si el meme
+// tiene reportes pendientes de revisión.
 router.patch("/:id", withUser, async (request, response) => {
   const meme = await MemeModel.findById(request.params.id);
   if (!meme) {
@@ -298,6 +331,10 @@ router.patch("/:id", withUser, async (request, response) => {
   }
   if (meme.user.toString() !== request.userId) {
     response.status(403).json({ error: "you can only edit your own memes" });
+    return;
+  }
+  if (await memeHasPendingReports(meme._id)) {
+    response.status(409).json(PENDING_REPORTS_ERROR);
     return;
   }
 
@@ -335,10 +372,12 @@ router.patch("/:id", withUser, async (request, response) => {
 });
 
 // Solo el AUTOR del meme puede eliminarlo. Junto con el meme se borran sus
-// comentarios, sus reacciones, sus reportes (ya no hay nada que revisar) y el
-// archivo de la imagen, para no dejar datos huérfanos. Responde 404 si no existe
-// y 403 si es de otro usuario. (La eliminación por moderación es otra cosa: ver
-// controllers/admin.ts, que conserva todo como evidencia.)
+// comentarios, sus reacciones, sus reportes y el archivo de la imagen, para no
+// dejar datos huérfanos. Responde 404 si no existe, 403 si es de otro usuario y
+// 409 si el meme tiene reportes pendientes de revisión (hasta que un admin los
+// resuelva no se puede borrar: sería una forma de esquivar la moderación).
+// (La eliminación por moderación es otra cosa: ver controllers/admin.ts, que
+// conserva todo como evidencia.)
 router.delete("/:id", withUser, async (request, response) => {
   const meme = await MemeModel.findById(request.params.id);
   if (!meme) {
@@ -349,12 +388,19 @@ router.delete("/:id", withUser, async (request, response) => {
     response.status(403).json({ error: "you can only delete your own memes" });
     return;
   }
+  if (await memeHasPendingReports(meme._id)) {
+    response.status(409).json(PENDING_REPORTS_ERROR);
+    return;
+  }
 
   await meme.deleteOne();
   await Promise.all([
     CommentModel.deleteMany({ meme: meme._id }),
     ReactionModel.deleteMany({ meme: meme._id }),
-    ReportModel.deleteMany({ meme: meme._id }),
+    // Los reportes "accepted" se conservan: son de comentarios de OTROS usuarios
+    // que un admin eliminó, y siguen contando en el total de reportes de cada
+    // uno. Los pendientes y descartados ya no tienen nada que revisar.
+    ReportModel.deleteMany({ meme: meme._id, status: { $ne: "accepted" } }),
     removeImage(meme.image),
   ]);
 

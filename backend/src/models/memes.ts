@@ -6,6 +6,13 @@ export interface MemeData {
   author: string;
   // URL pública de la imagen. Para memes subidos es "/uploads/<archivo>".
   image: string;
+  // Tamaño de la imagen en píxeles, tal como la muestra el navegador (con la
+  // orientación EXIF ya aplicada). El frontend lo usa para reservar el espacio de
+  // la tarjeta antes de que la imagen cargue y que la galería no "salte". Es null
+  // en los memes anteriores a este campo (se calcula con `npm run
+  // backfill-image-sizes`) y cuando no se pudo leer del archivo.
+  width: number | null;
+  height: number | null;
   departments: string[];   
   tags: string[];   
   user: mongoose.Types.ObjectId;
@@ -28,6 +35,8 @@ const memeSchema = new mongoose.Schema<MemeData>(
     content: { type: String, required: true, minlength: 1, maxlength: 300 },
     author: { type: String, required: true },
     image: { type: String, required: true },
+    width: { type: Number, default: null, min: 1 },
+    height: { type: Number, default: null, min: 1 },
     departments: [{ type: String, enum: [...DEPARTMENTS] }],
     tags: [{ type: String, maxlength: 30 }],
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },

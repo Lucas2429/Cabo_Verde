@@ -15,6 +15,15 @@ const describeError = (error: unknown, mode: Mode): string => {
     const { status, data } = error.response;
     const serverMessage = (data as { error?: unknown } | undefined)?.error;
 
+    // Cuenta baneada por un admin (el backend lo avisa solo si la contraseña es
+    // correcta, así que quien lo ve sí es el dueño de la cuenta).
+    if (
+      status === 403 &&
+      (data as { code?: unknown } | undefined)?.code === "banned"
+    ) {
+      return "Esta cuenta fue baneada. Ya no puedes iniciar sesión con ella.";
+    }
+
     if (mode === "login" && status === 401) {
       return "Usuario o contraseña incorrectos.";
     }

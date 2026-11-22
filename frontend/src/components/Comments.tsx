@@ -11,6 +11,12 @@ import commentService from "../services/comment";
 import type { CommentData } from "../types/commentData";
 import { useAuth } from "../context/auth";
 import { timeAgo } from "../utils/time";
+import {
+  PENDING_REPORTS_MESSAGES,
+  UNDER_REVIEW_HINT,
+  isPendingReportsError,
+} from "../utils/reports";
+import { useUnderReview } from "../hooks/useUnderReview";
 import UserAvatar from "./UserAvatar";
 import ModerationReasonModal from "./ModerationReasonModal";
 import ReportModal from "./ReportModal";
@@ -31,6 +37,9 @@ const describeError = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
       return "No se pudo conectar con el servidor.";
+    }
+    if (isPendingReportsError(error)) {
+      return PENDING_REPORTS_MESSAGES.comment;
     }
     const serverMessage = (error.response.data as { error?: unknown } | undefined)
       ?.error;
@@ -92,6 +101,15 @@ const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Mis comentarios con reportes pendientes: mientras un admin no los resuelva no
+  // se pueden editar ni eliminar (el backend lo exige; esto solo bloquea los
+  // botones y explica por qué). Solo se consulta si hay algún comentario propio
+  // en la lista.
+  const hasOwnComments =
+    username !== null && comments.some((comment) => comment.author === username);
+  const { commentIds: commentsUnderReview, refresh: refreshUnderReview } =
+    useUnderReview(hasOwnComments);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +255,9 @@ const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
         return;
       }
 
+      // Si lo rechazó por reportes pendientes (se reportó con la página abierta),
+      // se actualiza la lista para bloquear los botones.
+      if (isPendingReportsError(err)) void refreshUnderReview();
       setEditError(describeError(err));
     } finally {
       setSavingEdit(false);
@@ -297,6 +318,7 @@ const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
         return;
       }
 
+      if (isPendingReportsError(err)) void refreshUnderReview();
       setDeleteError(describeError(err));
     } finally {
       setDeleting(false);
@@ -344,6 +366,8 @@ const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
     // engranaje (que reemplaza al botón de reportar).
     const canReport = !isAdmin && !isOwner;
     const canModerate = isAdmin && !isOwner;
+    // Mi comentario con reportes pendientes: no se puede editar ni eliminar.
+    const underReview = isOwner && commentsUnderReview.has(comment.id);
 
     return (
       <div key={comment.id} className="flex gap-3">
@@ -364,6 +388,14 @@ const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
             <span className="text-[10px] text-gray-400">
               {timeAgo(comment.createdAt)}
             </span>
+            {underReview && (
+              <span
+                title={UNDER_REVIEW_HINT}
+                className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-300"
+              >
+                En revisión
+              </span>
+            )}
           </div>
           {isDeleted ? (
             <p className="mt-0.5 text-sm italic text-gray-400">
@@ -435,16 +467,28 @@ const Comments = ({ memeId, locked, onSessionExpired }: CommentsProps) => {
                 <>
                   <button
                     type="button"
-                    onClick={() => startEdit(comment)}
-                    className="text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer"
+                    title={underReview ? UNDER_REVIEW_HINT : undefined}
+                    aria-disabled={underReview}
+                    onClick={() => {
+                      if (!underReview) startEdit(comment);
+                    }}
+                    className={`text-xs font-semibold text-gray-500 hover:text-indigo-600 cursor-pointer ${
+                      underReview ? "!cursor-not-allowed opacity-40 hover:!text-gray-500" : ""
+                    }`}
                   >
                     Editar
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => startDelete(comment)}
-                    className="text-xs font-semibold text-red-500 hover:text-red-700 cursor-pointer"
+                    title={underReview ? UNDER_REVIEW_HINT : undefined}
+                    aria-disabled={underReview}
+                    onClick={() => {
+                      if (!underReview) startDelete(comment);
+                    }}
+                    className={`text-xs font-semibold text-red-500 hover:text-red-700 cursor-pointer ${
+                      underReview ? "!cursor-not-allowed opacity-40 hover:!text-red-500" : ""
+                    }`}
                   >
                     Eliminar
                   </button>

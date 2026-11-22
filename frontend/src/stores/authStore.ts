@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import authService, { getStoredSession } from "../services/auth";
+import authService, { clearSession, getStoredSession } from "../services/auth";
 import type { Role, Session } from "../types/auth";
 import type { Department } from "../types/departments";
 import { useMemeStore } from "./memeStore";
@@ -21,6 +21,11 @@ interface AuthState {
   // protegidas esperan a que sea true: así, al recargar (F5), un usuario con
   // sesión no es enviado al login por error.
   sessionChecked: boolean;
+  // true cuando el backend avisó (403, code "banned") que la cuenta fue baneada
+  // mientras el usuario usaba el sitio. La sesión ya se cerró; este estado
+  // muestra un aviso (BannedNotice) hasta que el usuario lo cierra. Lo activa el
+  // interceptor de services/interceptors.ts.
+  banned: boolean;
 
   setAvatar: (avatar: string | null) => void;
   login: (username: string, password: string) => Promise<void>;
@@ -32,6 +37,8 @@ interface AuthState {
   ) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
+  handleBanned: () => void;
+  dismissBanned: () => void;
 }
 
 // Pide al backend la foto y el rol de la sesión. Si mientras tanto el usuario
@@ -49,6 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   avatar: null,
   role: null,
   sessionChecked: getStoredSession() === null,
+  banned: false,
 
   setAvatar: (avatar) => set({ avatar }),
 
@@ -78,6 +86,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useMemeStore.getState().setMyReactions({});
     }
   },
+
+  // La cuenta fue baneada con la sesión abierta. No se llama a la API de logout
+  // (fallaría igual con 403): la cookie ya la borró el backend en esa respuesta,
+  // así que solo falta limpiar lo que se guarda en el navegador.
+  handleBanned: () => {
+    clearSession();
+    set({
+      session: null,
+      avatar: null,
+      role: null,
+      sessionChecked: true,
+      banned: true,
+    });
+    useMemeStore.getState().setMyReactions({});
+  },
+
+  dismissBanned: () => set({ banned: false }),
 
   // Se llama una vez al abrir el sitio (ver AuthProvider).
   initialize: async () => {

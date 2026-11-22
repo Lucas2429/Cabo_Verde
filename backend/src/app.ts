@@ -11,6 +11,7 @@ import memesRouter from "./controllers/memes";
 import usersRouter from "./controllers/users";
 import loginRouter from "./controllers/login";
 import adminRouter from "./controllers/admin";
+import ReportModel from "./models/report";
 // LAB 8 - P3: router de utilidades para pruebas (reinicio de la BD).
 import testingRouter from "./controllers/testing";
 
@@ -23,7 +24,22 @@ if (config.MONGODB_URI) {
     // LAB 8 - P3: config.MONGODB_DBNAME ya depende del entorno
     // (MONGODB_DBNAME_TEST si NODE_ENV=test, MONGODB_DBNAME en otro caso).
     .connect(config.MONGODB_URI, { dbName: config.MONGODB_DBNAME })
-    .then(() => logger.info(`connected to MongoDB (db: ${config.MONGODB_DBNAME})`))
+    .then(async () => {
+      logger.info(`connected to MongoDB (db: ${config.MONGODB_DBNAME})`);
+      // El índice único de los reportes cambió al agregar los reportes de usuario
+      // (ahora incluye el tipo y el autor). Mongoose crea los índices nuevos pero
+      // NO borra los antiguos, y el antiguo (reporter + meme + comment) impediría
+      // reportar a más de un usuario. syncIndexes elimina los que ya no están en
+      // el esquema y crea los que faltan; no toca los datos.
+      try {
+        await ReportModel.syncIndexes();
+      } catch (error) {
+        logger.error(
+          "error syncing report indexes (reportar a varios usuarios puede fallar):",
+          (error as Error).message
+        );
+      }
+    })
     .catch((error) => {
       logger.error("error connecting to MongoDB:", error.message);
     });

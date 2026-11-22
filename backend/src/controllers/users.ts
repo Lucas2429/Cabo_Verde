@@ -10,11 +10,15 @@ import User, {
 } from "../models/user";
 import { withUser } from "../utils/middleware";
 import { removeImage, saveImage, uploadImage } from "../utils/upload";
+import { userReportRouter } from "./reports";
 
 // Cuántos memes recientes se muestran en el perfil.
 const LATEST_MEMES_LIMIT = 3;
 
 const router = express.Router();
+
+// Reportar a un usuario: /api/users/:username/report
+router.use("/:username/report", userReportRouter);
 
 // Devuelven un mensaje de error, o null si el valor es válido.
 const checkDisplayName = (value: unknown): string | null =>
@@ -207,6 +211,9 @@ router.get("/:username", async (request, response) => {
     description: user.description ?? "",
     avatar: user.avatar ?? null,
     department: user.department,
+    // Si la cuenta está baneada. El motivo y quién la baneó no salen de aquí:
+    // son solo para los admins.
+    banned: Boolean(user.bannedAt),
     memesCount,
     latestMemes: await withReactionCounts(latestMemes),
   });

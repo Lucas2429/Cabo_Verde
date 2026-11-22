@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { ReportReason } from "../types/report";
+import type { ContentUnderReview, ReportReason } from "../types/report";
 import { getStoredSession } from "./auth";
 
 const baseUrl = "/api/memes";
@@ -33,4 +33,26 @@ const reportComment = (
     .then(() => undefined);
 };
 
-export default { reportMeme, reportComment };
+// Reporta a un usuario (su perfil o su conducta en general). Mismas reglas que
+// reportMeme, más: los admins no se pueden reportar (403, code "admin_target") y
+// un usuario ya baneado tampoco (409, code "user_banned").
+const reportUser = (username: string, reason: ReportReason, details: string) => {
+  return axios
+    .post(
+      `/api/users/${encodeURIComponent(username)}/report`,
+      { reason, details },
+      authConfig()
+    )
+    .then(() => undefined);
+};
+
+// Mi contenido (memes y comentarios) que tiene reportes pendientes: mientras
+// un admin no los resuelva, no puedo editarlo ni eliminarlo. Requiere sesión y
+// solo devuelve lo propio.
+const getMyContentUnderReview = () => {
+  return axios
+    .get<ContentUnderReview>(`${baseUrl}/under-review/mine`, authConfig())
+    .then((response) => response.data);
+};
+
+export default { reportMeme, reportComment, reportUser, getMyContentUnderReview };

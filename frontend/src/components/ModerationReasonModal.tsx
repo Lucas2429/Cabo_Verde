@@ -15,6 +15,11 @@ interface ModerationReasonModalProps {
   preview?: ReactNode;
   // Motivo sugerido (por ejemplo, el más reportado); el admin puede cambiarlo.
   defaultReason?: string;
+  // Textos del botón de confirmar (por defecto, los de "Eliminar") y ícono del
+  // encabezado. Se cambian cuando la acción no es eliminar (por ejemplo, banear).
+  confirmLabel?: string;
+  busyLabel?: string;
+  icon?: ReactNode;
   // Hace la eliminación. Si falla, debe lanzar el error (axios) para mostrarlo acá.
   onConfirm: (reason: string) => Promise<void>;
   onClose: () => void;
@@ -27,11 +32,11 @@ const describeError = (error: unknown): string => {
     }
     switch (error.response.status) {
       case 403:
-        return "No puedes moderar contenido de otro administrador.";
+        return "No puedes moderar a otro administrador ni su contenido.";
       case 404:
-        return "Este contenido ya no existe.";
+        return "Esto ya no existe.";
       case 409:
-        return "Este contenido ya fue eliminado.";
+        return "Esto ya fue moderado (por ejemplo, por otro administrador).";
     }
     const serverMessage = (error.response.data as { error?: unknown } | undefined)
       ?.error;
@@ -51,6 +56,9 @@ const ModerationReasonModal = ({
   description,
   preview,
   defaultReason = "",
+  confirmLabel = "Eliminar",
+  busyLabel = "Eliminando...",
+  icon,
   onConfirm,
   onClose,
 }: ModerationReasonModalProps) => {
@@ -112,7 +120,7 @@ const ModerationReasonModal = ({
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-4xl text-red-600 dark:bg-red-500/15 dark:text-red-400">
-            <DeleteOutlinedIcon fontSize="inherit" />
+            {icon ?? <DeleteOutlinedIcon fontSize="inherit" />}
           </span>
           <h2
             id="moderation-title"
@@ -168,7 +176,7 @@ const ModerationReasonModal = ({
               disabled={submitting || reasonTooShort}
               className="btn-danger"
             >
-              {submitting ? "Eliminando..." : "Eliminar"}
+              {submitting ? busyLabel : confirmLabel}
             </button>
           </div>
         </form>
