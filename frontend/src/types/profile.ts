@@ -9,6 +9,9 @@ export type UserProfile = {
   // URL de la foto de perfil, o null si todavía no subió una.
   avatar: string | null;
   department: string;
+  // true si un admin baneó la cuenta (no puede iniciar sesión). El motivo no es
+  // público: solo lo ven los admins.
+  banned: boolean;
   memesCount: number;
   // Los últimos memes publicados (máximo 3), del más nuevo al más antiguo.
   // Para ver todos se usa userService.getMemes.

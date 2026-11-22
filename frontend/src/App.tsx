@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import { AdminRoute, ProtectedRoute } from "./components/RouteGuards";
+import BannedNotice from "./components/BannedNotice";
 import AdminReportsPage from "./pages/AdminReportsPage";
 import Home from "./pages/Home";
 import LoginPage from "./pages/LoginPage";
@@ -11,6 +12,8 @@ import "./App.css";
 function App() {
   return (
     <AuthProvider>
+      {/* Aviso global si la cuenta es baneada mientras se usa el sitio. */}
+      <BannedNotice />
       <Routes>
         {/* Rutas públicas: las ve cualquiera, con o sin sesión. */}
         <Route path="/" element={<Home />} />

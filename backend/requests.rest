@@ -234,11 +234,23 @@ Content-Type: application/json
   "reason": "harassment"
 }
 
+### Reportar a un USUARIO ajeno (requiere sesión; mismas reglas y motivos)
+# Errores: 403 si eres tú (code "own_content") o si es admin ("admin_target"), 409 si ya
+# lo reportaste ("already_reported") o ya está baneado ("user_banned").
+POST http://localhost:3001/api/users/<USERNAME>/report
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "reason": "harassment"
+}
+
 ### --- ADMINISTRACIÓN ---------------------------------------------------------
 # Todo /api/admin exige sesión de un usuario con rol admin (si no -> 403). Para
 # crear un admin: npm run set-role -- <usuario> admin
 
-### Posts reportados, agrupados (status: pending por defecto, o resolved)
+### Posts reportados, agrupados y ordenados de más a menos reportes
+# (status: pending por defecto, o resolved). Los comentarios siguen el mismo orden.
 GET http://localhost:3001/api/admin/reports/memes?status=pending
 X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 
@@ -246,9 +258,44 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 GET http://localhost:3001/api/admin/reports/comments?status=pending
 X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 
-### Usuarios con reportes pendientes y aceptados
-GET http://localhost:3001/api/admin/reports/users
+### Usuarios reportados, agrupados y en el mismo orden (status: pending o resolved)
+GET http://localhost:3001/api/admin/reports/users?status=pending
 X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Cuántos posts, comentarios y usuarios están en alerta (umbral definido por el backend)
+# Es lo que enciende la marca roja del botón "Reportes" del header. Responde
+# { threshold: 5, memes, comments, users }.
+GET http://localhost:3001/api/admin/reports/alerts
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Banear a un usuario (motivo obligatorio, solo lo ven los admins)
+# Su sesión abierta se corta al instante y no puede volver a iniciar sesión.
+# 403 si el usuario es admin, 409 si ya estaba baneado.
+POST http://localhost:3001/api/admin/users/<USERNAME>/ban
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "reason": "Acoso reiterado"
+}
+
+### Levantar el baneo de un usuario
+POST http://localhost:3001/api/admin/users/<USERNAME>/unban
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Descartar los reportes pendientes de un usuario
+POST http://localhost:3001/api/admin/users/<USERNAME>/dismiss-reports
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Iniciar sesión con una cuenta baneada -> debe responder 403 con { "code": "banned" }
+# (solo si la contraseña es correcta; con una incorrecta responde 401 como siempre)
+POST http://localhost:3001/api/login
+Content-Type: application/json
+
+{
+  "username": "<USERNAME_BANEADO>",
+  "password": "<SU_CONTRASEÑA>"
+}
 
 ### Eliminar un post por moderación (no se borra de la BD; queda con el motivo)
 POST http://localhost:3001/api/admin/memes/<ID_DEL_MEME>/remove
@@ -292,6 +339,13 @@ X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 ### Un usuario normal intenta entrar a /api/admin -> debe responder 403
 # (usa la sesión de un usuario sin rol admin)
 GET http://localhost:3001/api/admin/reports/users
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+
+### Mi contenido con reportes pendientes (requiere sesión; solo devuelve lo propio)
+# Responde { memes: [ids], comments: [ids] }. Mientras un admin no resuelva esos
+# reportes, PATCH y DELETE de ese meme o comentario responden 409 con
+# { "code": "pending_reports" } (aún siendo el autor). Se desbloquea al resolverlos.
+GET http://localhost:3001/api/memes/under-review/mine
 X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
 
 ### Eliminar lógicamente un comentario propio

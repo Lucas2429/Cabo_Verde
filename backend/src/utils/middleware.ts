@@ -63,11 +63,19 @@ const errorHandler = (
   }
 };
 
+// Respuesta (403) cuando una cuenta baneada intenta iniciar sesión o usar una
+// sesión abierta. El `code` permite al frontend mostrar su propio aviso.
+export const BANNED_ERROR = {
+  error: "this account has been banned",
+  code: "banned",
+} as const;
+
 export const withUser = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  let userId: string;
   try {
     const token = req.cookies?.token;
     if (!token) {
@@ -77,18 +85,36 @@ export const withUser = async (
     const decodedToken = jwt.verify(token, config.JWT_SECRET);
     const csrfToken = req.headers["x-csrf-token"];
     if (
-      typeof decodedToken === "object" &&
-      decodedToken.id &&
-      decodedToken.csrf === csrfToken
+      typeof decodedToken !== "object" ||
+      !decodedToken.id ||
+      decodedToken.csrf !== csrfToken
     ) {
-      req.userId = decodedToken.id;
-      next();
-    } else {
       res.status(401).json({ error: "invalid token" });
+      return;
     }
+    userId = decodedToken.id;
   } catch {
     res.status(401).json({ error: "invalid token" });
+    return;
   }
+
+  try {
+    // Una cuenta baneada pierde el acceso AL INSTANTE, aunque su sesión (el
+    // token, que dura 1 hora) siga vigente: por eso se consulta la base de datos
+    // en cada petición y no solo al iniciar sesión. Se borra también la cookie.
+    const account = await User.findById(userId, "bannedAt");
+    if (account?.bannedAt) {
+      res.clearCookie("token");
+      res.status(403).json(BANNED_ERROR);
+      return;
+    }
+  } catch (error) {
+    next(error);
+    return;
+  }
+
+  req.userId = userId;
+  next();
 };
 
 // Solo admins. Se usa DESPUÉS de withUser (que valida la sesión y deja el id en

@@ -7,16 +7,23 @@ import ReportModel, {
   MAX_REPORTS_PER_HOUR,
   REPORT_REASONS,
   type ReportReason,
+  type ReportTargetType,
 } from "../models/report";
+import User from "../models/user";
 import { withUser } from "../utils/middleware";
 
-// Reportar contenido ajeno. Hay dos routers porque cada uno se monta bajo su
-// propio recurso:
+// Reportar contenido o usuarios ajenos. Hay tres routers porque cada uno se
+// monta bajo su propio recurso:
 //   - memeReportRouter:    POST /api/memes/:id/report
 //   - commentReportRouter: POST /api/memes/:id/comments/:commentId/report
-// Los dos reciben JSON con:
+//   - userReportRouter:    POST /api/users/:username/report
+// Todos reciben JSON con:
 //   - reason:  uno de REPORT_REASONS
 //   - details: texto de hasta 200 caracteres. Obligatorio si reason es "other".
+//
+// Los errores llevan un `code` estable (own_content, admin_target, user_banned,
+// already_reported, too_many_reports) para que el frontend muestre su propio
+// mensaje sin depender del texto en inglés.
 
 const isReportReason = (value: unknown): value is ReportReason =>
   typeof value === "string" && (REPORT_REASONS as readonly string[]).includes(value);
@@ -48,50 +55,69 @@ const parseBody = (
 
 interface NewReport {
   reporter: string | undefined;
-  targetType: "meme" | "comment";
-  meme: mongoose.Types.ObjectId;
+  targetType: ReportTargetType;
+  // null en los reportes de usuario.
+  meme: mongoose.Types.ObjectId | null;
   comment: mongoose.Types.ObjectId | null;
-  // Autor del contenido reportado.
+  // Autor del contenido reportado (o el propio usuario reportado).
   targetUser: mongoose.Types.ObjectId;
   reason: ReportReason;
   details: string;
 }
 
-// Reglas comunes a los dos tipos de reporte. Devuelve { status, error } si el
-// reporte no se puede crear, o null si se creó.
-const saveReport = async (
-  data: NewReport
-): Promise<{ status: number; error: string } | null> => {
+interface Failure {
+  status: number;
+  error: string;
+  code: string;
+}
+
+const ALREADY_REPORTED: Failure = {
+  status: 409,
+  error: "you already reported this",
+  code: "already_reported",
+};
+
+// Reglas comunes a los tres tipos de reporte. Devuelve el fallo si el reporte no
+// se puede crear, o null si se creó.
+const saveReport = async (data: NewReport): Promise<Failure | null> => {
   if (data.targetUser.toString() === data.reporter) {
-    return { status: 403, error: "you cannot report your own content" };
+    return {
+      status: 403,
+      error: "you cannot report yourself or your own content",
+      code: "own_content",
+    };
   }
 
-  // Freno a los abusos: no más de MAX_REPORTS_PER_HOUR reportes por hora.
+  // Freno a los abusos: no más de MAX_REPORTS_PER_HOUR reportes por hora (entre
+  // todos los tipos).
   const lastHour = new Date(Date.now() - 60 * 60 * 1000);
   const recentReports = await ReportModel.countDocuments({
     reporter: data.reporter,
     createdAt: { $gte: lastHour },
   });
   if (recentReports >= MAX_REPORTS_PER_HOUR) {
-    return { status: 429, error: "too many reports, try again later" };
+    return {
+      status: 429,
+      error: "too many reports, try again later",
+      code: "too_many_reports",
+    };
   }
 
+  // Los mismos campos que el índice único de models/report.ts.
   const alreadyReported = await ReportModel.exists({
     reporter: data.reporter,
+    targetType: data.targetType,
     meme: data.meme,
     comment: data.comment,
+    targetUser: data.targetUser,
   });
-  if (alreadyReported) {
-    return { status: 409, error: "you already reported this content" };
-  }
+  if (alreadyReported) return ALREADY_REPORTED;
 
   try {
     await new ReportModel(data).save();
   } catch (error) {
     // Dos reportes iguales al mismo tiempo: el índice único deja pasar solo uno.
-    if ((error as { code?: number }).code === 11000) {
-      return { status: 409, error: "you already reported this content" };
-    }
+    if ((error as { code?: number }).code === 11000) return ALREADY_REPORTED;
     throw error;
   }
   return null;
@@ -127,7 +153,7 @@ memeReportRouter.post("/", withUser, async (request, response) => {
     ...body,
   });
   if (failure) {
-    response.status(failure.status).json({ error: failure.error });
+    response.status(failure.status).json({ error: failure.error, code: failure.code });
     return;
   }
   response.status(201).json({ message: "report received" });
@@ -176,7 +202,59 @@ commentReportRouter.post("/", withUser, async (request, response) => {
     ...body,
   });
   if (failure) {
-    response.status(failure.status).json({ error: failure.error });
+    response.status(failure.status).json({ error: failure.error, code: failure.code });
+    return;
+  }
+  response.status(201).json({ message: "report received" });
+});
+
+export const userReportRouter = express.Router({ mergeParams: true });
+
+// Reporta a un usuario (su perfil o su conducta en general; si el problema es un
+// meme o un comentario concreto, se reporta ese contenido). Los admins no se
+// pueden reportar: ningún admin puede moderar a otro, así que el reporte no
+// tendría quién lo resuelva. Un usuario ya baneado tampoco: ya no hay nada que
+// decidir.
+userReportRouter.post("/", withUser, async (request, response) => {
+  const body = parseBody(request.body);
+  if ("error" in body) {
+    response.status(400).json({ error: body.error });
+    return;
+  }
+
+  const target = await User.findOne(
+    { username: request.params.username },
+    "role bannedAt"
+  );
+  if (!target) {
+    response.status(404).json({ error: "user not found" });
+    return;
+  }
+  if (target.role === "admin") {
+    response.status(403).json({
+      error: "admins cannot be reported",
+      code: "admin_target",
+    });
+    return;
+  }
+  if (target.bannedAt) {
+    response.status(409).json({
+      error: "this user is already banned",
+      code: "user_banned",
+    });
+    return;
+  }
+
+  const failure = await saveReport({
+    reporter: request.userId,
+    targetType: "user",
+    meme: null,
+    comment: null,
+    targetUser: target._id,
+    ...body,
+  });
+  if (failure) {
+    response.status(failure.status).json({ error: failure.error, code: failure.code });
     return;
   }
   response.status(201).json({ message: "report received" });

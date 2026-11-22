@@ -2,7 +2,10 @@ import express from "express";
 import mongoose from "mongoose";
 import CommentModel, { withAuthorAvatars } from "../models/comment";
 import MemeModel from "../models/memes";
-import ReportModel from "../models/report";
+import ReportModel, {
+  PENDING_REPORTS_ERROR,
+  commentHasPendingReports,
+} from "../models/report";
 import User from "../models/user";
 import { withUser } from "../utils/middleware";
 import { commentReportRouter } from "./reports";
@@ -166,6 +169,13 @@ router.patch("/:commentId", withUser, async (request, response) => {
     return;
   }
 
+  // Con reportes pendientes no se puede editar: si no, se corregiría justo lo
+  // reportado y el admin revisaría otro texto. Se desbloquea al resolverlos.
+  if (await commentHasPendingReports(comment._id)) {
+    response.status(409).json(PENDING_REPORTS_ERROR);
+    return;
+  }
+
   // Actualizar y guardar
   comment.content = content;
 
@@ -212,6 +222,13 @@ router.delete("/:commentId", withUser, async (request, response) => {
     return;
   }
 
+  // Con reportes pendientes no se puede eliminar (ni siquiera de forma lógica):
+  // sería una forma de esquivar la moderación. Se desbloquea al resolverlos.
+  if (await commentHasPendingReports(comment._id)) {
+    response.status(409).json(PENDING_REPORTS_ERROR);
+    return;
+  }
+
   // TODO: Coordinar la creación de respuestas (POST) y la eliminación
   // física de comentarios (DELETE) para evitar referencias huérfanas
   // cuando ambas operaciones ocurran simultáneamente.
@@ -228,7 +245,8 @@ router.delete("/:commentId", withUser, async (request, response) => {
     comment.deletedAt = new Date();
 
     const deletedComment = await comment.save();
-    // Su texto ya no existe: los reportes de este comentario quedan sin objeto.
+    // Sus reportes ya resueltos (descartados) quedan sin objeto. No puede haber
+    // pendientes: arriba se bloquea la eliminación mientras los haya.
     await ReportModel.deleteMany({ comment: comment._id });
 
     response.status(200).json({

@@ -52,6 +52,14 @@ export interface UserData {
   // Los usuarios anteriores a los roles no tienen el campo: se tratan como
   // "user" (Mongoose aplica el valor por defecto al leerlos).
   role: Role;
+  // Baneo (lo aplica un admin, ver controllers/admin.ts). Una cuenta baneada no
+  // puede iniciar sesión ni usar una sesión abierta: `withUser` lo comprueba en
+  // cada petición. Mientras `bannedAt` sea null la cuenta está activa; los
+  // usuarios anteriores a esta función no tienen el campo y cuentan como activos.
+  // El motivo y quién lo aplicó son solo para los admins.
+  bannedAt?: Date | null;
+  bannedBy?: mongoose.Types.ObjectId | null;
+  banReason?: string | null;
 }
 
 const userSchema = new mongoose.Schema<UserData>({
@@ -82,6 +90,9 @@ const userSchema = new mongoose.Schema<UserData>({
     default: DEFAULT_DEPARTMENT,
   },
   role: { type: String, enum: [...ROLES], default: "user" },
+  bannedAt: { type: Date, default: null },
+  bannedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  banReason: { type: String, default: null },
 });
 
 // Para filtrar los memes de la galería por carrera del autor.
@@ -96,6 +107,9 @@ userSchema.set("toJSON", {
       __v?: number;
       passwordHash?: string;
       role?: Role;
+      bannedAt?: unknown;
+      bannedBy?: unknown;
+      banReason?: unknown;
       username?: string;
       displayName?: string;
     }
@@ -104,6 +118,11 @@ userSchema.set("toJSON", {
     delete returnedObject._id;
     delete returnedObject.__v;
     delete returnedObject.passwordHash;
+    // Los datos del baneo son solo para los admins (salen por admin.ts); en el
+    // perfil público solo se indica `banned`, calculado aparte en users.ts.
+    delete returnedObject.bannedAt;
+    delete returnedObject.bannedBy;
+    delete returnedObject.banReason;
     // El rol no sale en las respuestas públicas (así una lista de usuarios no
     // revela quiénes son admin). Solo `GET /api/login/me` lo agrega, para el
     // propio usuario.

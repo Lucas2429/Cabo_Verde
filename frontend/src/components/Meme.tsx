@@ -9,6 +9,7 @@ import ThumbDownAltIcon from "@mui/icons-material/ThumbDownAlt";
 import ReportOutlinedIcon from "@mui/icons-material/ReportOutlined";
 import ChatBubbleOutlinedIcon from "@mui/icons-material/ChatBubbleOutlined";
 import { useAuth } from "../context/auth";
+import { UNDER_REVIEW_HINT } from "../utils/reports";
 import MemeAdminMenu, { type MemeModerationHandlers } from "./MemeAdminMenu";
 import MemeOwnerActions from "./MemeOwnerActions";
 import ReportModal from "./ReportModal";
@@ -22,6 +23,9 @@ interface Prop {
   // editar (⋮) y eliminar (basurero). Si faltan, el meme se ve como siempre.
   onEdit?: () => void;
   onDelete?: () => void;
+  // true si este meme (propio) tiene reportes pendientes de revisión: editar y
+  // eliminar quedan bloqueados hasta que un administrador los resuelva.
+  underReview?: boolean;
   // Cómo la página se entera de lo que hace un admin (eliminar, limitar
   // comentarios). Los admins ven el engranaje de moderación en lugar del botón
   // de reportar.
@@ -31,7 +35,15 @@ interface Prop {
 const actionClass =
   "p-1.5 rounded-full flex items-center justify-center cursor-pointer transition-transform hover:scale-110 hover:bg-white/10";
 
-const Meme = ({ meme, reaction, onReact, onEdit, onDelete, moderation }: Prop) => {
+const Meme = ({
+  meme,
+  reaction,
+  onReact,
+  onEdit,
+  onDelete,
+  underReview = false,
+  moderation,
+}: Prop) => {
   const { username, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [reporting, setReporting] = useState(false);
@@ -72,7 +84,22 @@ const Meme = ({ meme, reaction, onReact, onEdit, onDelete, moderation }: Prop) =
       />
 
       {onEdit && onDelete && (
-        <MemeOwnerActions onEdit={onEdit} onDelete={onDelete} />
+        <MemeOwnerActions
+          onEdit={onEdit}
+          onDelete={onDelete}
+          locked={underReview}
+        />
+      )}
+
+      {/* Aviso al dueño: visible siempre (no solo con hover) para que en el celular
+          también se entienda por qué no puede editar ni eliminar. */}
+      {isOwner && underReview && (
+        <span
+          title={UNDER_REVIEW_HINT}
+          className="absolute left-2 top-2 z-10 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg"
+        >
+          En revisión
+        </span>
       )}
 
       {/* Engranaje de moderación: siempre visible para los admins. */}

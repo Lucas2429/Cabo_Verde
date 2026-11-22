@@ -1,5 +1,6 @@
 import axios from "axios";
 import type {
+  AlertCounts,
   ReportedCommentItem,
   ReportedMemeItem,
   ReportedUserItem,
@@ -37,11 +38,23 @@ const getReportedComments = (status: ReportFilter) => {
     .then((response) => response.data.items);
 };
 
-// Usuarios con reportes pendientes o aceptados.
-const getReportedUsers = () => {
+// Usuarios reportados, agrupados igual que los posts y comentarios.
+const getReportedUsers = (status: ReportFilter) => {
   return axios
-    .get<{ items: ReportedUserItem[] }>(`${baseUrl}/reports/users`, authConfig())
+    .get<{ items: ReportedUserItem[] }>(`${baseUrl}/reports/users`, {
+      ...authConfig(),
+      params: { status },
+    })
     .then((response) => response.data.items);
+};
+
+// Cuántos posts, comentarios y usuarios están "en alerta" (el umbral lo define
+// el backend y viene en `threshold`). El header de los admins muestra una marca
+// si hay alguno.
+const getReportAlerts = () => {
+  return axios
+    .get<AlertCounts>(`${baseUrl}/reports/alerts`, authConfig())
+    .then((response) => response.data);
 };
 
 // --- Acciones sobre posts ---------------------------------------------------
@@ -87,13 +100,52 @@ const dismissCommentReports = (commentId: string) => {
     .then(() => undefined);
 };
 
+// --- Acciones sobre usuarios -----------------------------------------------
+
+// Banea a un usuario: no podrá iniciar sesión y su sesión abierta se corta al
+// instante. El motivo es obligatorio y solo lo ven los admins.
+const banUser = (username: string, reason: string) => {
+  return axios
+    .post(
+      `${baseUrl}/users/${encodeURIComponent(username)}/ban`,
+      { reason },
+      authConfig()
+    )
+    .then(() => undefined);
+};
+
+// Levanta el baneo: el usuario puede volver a iniciar sesión.
+const unbanUser = (username: string) => {
+  return axios
+    .post(
+      `${baseUrl}/users/${encodeURIComponent(username)}/unban`,
+      {},
+      authConfig()
+    )
+    .then(() => undefined);
+};
+
+const dismissUserReports = (username: string) => {
+  return axios
+    .post(
+      `${baseUrl}/users/${encodeURIComponent(username)}/dismiss-reports`,
+      {},
+      authConfig()
+    )
+    .then(() => undefined);
+};
+
 export default {
   getReportedMemes,
   getReportedComments,
   getReportedUsers,
+  getReportAlerts,
   removeMeme,
   setCommentsLocked,
   dismissMemeReports,
   removeComment,
   dismissCommentReports,
+  banUser,
+  unbanUser,
+  dismissUserReports,
 };

@@ -3,6 +3,7 @@ import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import memeService from "../services/meme";
 import type { MemesData } from "../types/memesData";
+import { PENDING_REPORTS_MESSAGES, isPendingReportsError } from "../utils/reports";
 
 const MAX_CONTENT_LENGTH = 300;
 
@@ -18,6 +19,9 @@ const describeError = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
       return "No se pudo conectar con el servidor.";
+    }
+    if (isPendingReportsError(error)) {
+      return PENDING_REPORTS_MESSAGES.meme;
     }
     if (error.response.status === 403) {
       return "Solo puedes editar tus propias publicaciones.";

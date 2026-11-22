@@ -12,29 +12,57 @@ import {
   type ReportReason,
 } from "../types/report";
 
+type ReportTarget = "meme" | "comment" | "user";
+
 interface ReportModalProps {
-  // Qué se reporta: el meme completo o un comentario suyo.
-  target: "meme" | "comment";
-  memeId: string;
+  // Qué se reporta: un meme, un comentario suyo o un usuario.
+  target: ReportTarget;
+  // Para target "meme" y "comment".
+  memeId?: string;
   // Solo cuando target es "comment".
   commentId?: string;
+  // Solo cuando target es "user".
+  username?: string;
   onClose: () => void;
+  // Se llama cuando el reporte se envió bien (por ejemplo, para marcar el botón
+  // del perfil como "Usuario reportado").
+  onReported?: () => void;
 }
 
-const describeError = (error: unknown, noun: string): string => {
+// Cómo se nombra lo reportado en los textos del formulario.
+const TARGET_TEXT: Record<ReportTarget, { noun: string; article: string }> = {
+  meme: { noun: "publicación", article: "esta" },
+  comment: { noun: "comentario", article: "este" },
+  user: { noun: "usuario", article: "este" },
+};
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+// Los mensajes dependen del `code` que manda el backend, no de su texto en inglés.
+const describeError = (error: unknown, target: ReportTarget): string => {
+  const { noun, article } = TARGET_TEXT[target];
+
   if (axios.isAxiosError(error)) {
     if (!error.response) {
       return "No se pudo conectar con el servidor.";
     }
-    switch (error.response.status) {
-      case 403:
-        return "No puedes reportar tu propio contenido.";
-      case 404:
-        return `Este ${noun} ya no existe.`;
-      case 409:
-        return `Ya reportaste este ${noun}.`;
-      case 429:
+    const code = (error.response.data as { code?: unknown } | undefined)?.code;
+    switch (code) {
+      case "own_content":
+        return target === "user"
+          ? "No puedes reportarte a ti mismo."
+          : "No puedes reportar tu propio contenido.";
+      case "admin_target":
+        return "Los administradores no se pueden reportar.";
+      case "user_banned":
+        return "Este usuario ya fue baneado.";
+      case "already_reported":
+        return `Ya reportaste ${article} ${noun}.`;
+      case "too_many_reports":
         return "Enviaste demasiados reportes seguidos. Intenta de nuevo más tarde.";
+    }
+    if (error.response.status === 404) {
+      return `${capitalize(article)} ${noun} ya no existe.`;
     }
     const serverMessage = (error.response.data as { error?: unknown } | undefined)
       ?.error;
@@ -45,11 +73,18 @@ const describeError = (error: unknown, noun: string): string => {
   return "No se pudo enviar el reporte. Intenta nuevamente.";
 };
 
-// Formulario para reportar un meme o un comentario ajeno: se elige un motivo y,
-// si es "Otro", se explica cuál. Se dibuja en un portal sobre el <body>: las
-// tarjetas de la galería tienen `transform` y `overflow-hidden`, que recortarían
-// o descolocarían un modal `fixed` si viviera dentro de ellas.
-const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) => {
+// Formulario para reportar un meme, un comentario o un usuario ajeno: se elige
+// un motivo y, si es "Otro", se explica cuál. Se dibuja en un portal sobre el
+// <body>: las tarjetas de la galería tienen `transform` y `overflow-hidden`, que
+// recortarían o descolocarían un modal `fixed` si viviera dentro de ellas.
+const ReportModal = ({
+  target,
+  memeId,
+  commentId,
+  username,
+  onClose,
+  onReported,
+}: ReportModalProps) => {
   const handleSessionExpired = useSessionExpired();
 
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -58,7 +93,7 @@ const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) =
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const noun = target === "meme" ? "publicación" : "comentario";
+  const { noun, article } = TARGET_TEXT[target];
 
   // Escape cierra la ventana.
   useEffect(() => {
@@ -86,18 +121,21 @@ const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) =
     setSubmitting(true);
     setError(null);
     try {
-      if (target === "meme") {
+      if (target === "meme" && memeId) {
         await reportService.reportMeme(memeId, reason, trimmed);
-      } else if (commentId) {
+      } else if (target === "comment" && memeId && commentId) {
         await reportService.reportComment(memeId, commentId, reason, trimmed);
+      } else if (target === "user" && username) {
+        await reportService.reportUser(username, reason, trimmed);
       }
       setSent(true);
+      onReported?.();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 401) {
         await handleSessionExpired();
         return;
       }
-      setError(describeError(err, noun));
+      setError(describeError(err, target));
     } finally {
       setSubmitting(false);
     }
@@ -148,7 +186,7 @@ const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) =
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Gracias por ayudarnos a cuidar la comunidad. Un administrador
-              revisará este {noun}.
+              revisará {article} {noun}.
             </p>
             <button type="button" onClick={onClose} className="btn-primary mt-2">
               Cerrar
@@ -157,7 +195,7 @@ const ReportModal = ({ target, memeId, commentId, onClose }: ReportModalProps) =
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              ¿Por qué quieres reportar este {noun}?
+              ¿Por qué quieres reportar {article} {noun}?
             </p>
 
             <div role="radiogroup" aria-label="Motivo del reporte" className="space-y-2">

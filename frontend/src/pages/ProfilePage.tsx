@@ -4,14 +4,19 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import BlockIcon from "@mui/icons-material/Block";
 import Header from "../components/Header";
 import Meme from "../components/Meme";
 import MemeModal from "../components/MemeModal";
 import type { MemeModerationHandlers } from "../components/MemeAdminMenu";
 import EditMemeModal from "../components/EditMemeModal";
 import DeleteMemeModal from "../components/DeleteMemeModal";
+import ReportModal from "../components/ReportModal";
+import ModerationReasonModal from "../components/ModerationReasonModal";
+import adminService from "../services/admin";
 import userService, { type UpdatedProfile } from "../services/user";
 import { useReactions } from "../hooks/useReactions";
+import { useUnderReview } from "../hooks/useUnderReview";
 import { useAuth } from "../context/auth";
 import type { MemesData } from "../types/memesData";
 import {
@@ -278,7 +283,12 @@ function ProfileEditForm({ profile, onSaved, onCancel, onSessionExpired }: EditF
 }
 
 function ProfileView({ username }: { username: string }) {
-  const { username: currentUser, logout, setAvatar: setSessionAvatar } = useAuth();
+  const {
+    username: currentUser,
+    isAdmin,
+    logout,
+    setAvatar: setSessionAvatar,
+  } = useAuth();
   const navigate = useNavigate();
 
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -299,6 +309,12 @@ function ProfileView({ username }: { username: string }) {
   const latestMemes = state.status === "ok" ? state.profile.latestMemes : [];
   const isOwnProfile = state.status === "ok" && currentUser === state.profile.username;
 
+  // Mis publicaciones con reportes pendientes: mientras un admin no los resuelva
+  // no se pueden editar ni eliminar (el backend lo exige; esto solo bloquea los
+  // botones y explica por qué). Solo se consulta en el perfil propio.
+  const { memeIds: memesUnderReview, refresh: refreshUnderReview } =
+    useUnderReview(isOwnProfile);
+
   const findMeme = (id: string | null): MemesData | null =>
     id === null
       ? null
@@ -311,10 +327,15 @@ function ProfileView({ username }: { username: string }) {
   const memeToEdit = isOwnProfile ? findMeme(editingMemeId) : null;
   const memeToDelete = isOwnProfile ? findMeme(deletingMemeId) : null;
 
-  // SOLO FRONTEND: los reportes no existen en el backend. Estos valores viven
-  // en memoria y se reinician al recargar o cambiar de perfil.
-  const [reportsReceived, setReportsReceived] = useState(0);
+  // Reporte de usuario: `reporting` abre el formulario y `reported` recuerda (solo
+  // en esta visita) que ya se envió uno, para dejar el botón como "Usuario
+  // reportado". Si se recarga, el backend igual rechaza un segundo reporte (409).
+  const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  // Moderación (solo admins): ventana para banear y estado de "desbanear".
+  const [banning, setBanning] = useState(false);
+  const [unbanning, setUnbanning] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -370,9 +391,40 @@ function ProfileView({ username }: { username: string }) {
     onSessionExpired: handleSessionExpired,
   });
 
-  const handleReport = () => {
-    setReported(true);
-    setReportsReceived((n) => n + 1);
+  // Un invitado que toca "Reportar usuario" va al login (como con los likes).
+  const handleReportClick = () => {
+    if (currentUser === null) {
+      navigate("/login");
+      return;
+    }
+    setReporting(true);
+  };
+
+  // Marca el perfil como baneado o no baneado después de la acción de un admin.
+  const setProfileBanned = (banned: boolean) => {
+    setState((prev) =>
+      prev.status === "ok"
+        ? { status: "ok", profile: { ...prev.profile, banned } }
+        : prev
+    );
+  };
+
+  const handleUnban = async () => {
+    if (unbanning) return;
+    setUnbanning(true);
+    setModerationError(null);
+    try {
+      await adminService.unbanUser(username);
+      setProfileBanned(false);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        await handleSessionExpired();
+        return;
+      }
+      setModerationError("No se pudo levantar el baneo. Intenta nuevamente.");
+    } finally {
+      setUnbanning(false);
+    }
   };
 
   // "Mostrar todas": la primera vez trae la lista completa del backend; después
@@ -474,7 +526,6 @@ function ProfileView({ username }: { username: string }) {
           <div className={profile.description ? pillClass : `${pillClass} !font-normal text-gray-500 dark:!text-gray-400`}>
             {profile.description || "Sin descripción"}
           </div>
-          <div className={pillClass}>Reportes recibidos: {reportsReceived}</div>
           <div className={pillClass}>Publicaciones: {profile.memesCount}</div>
         </aside>
 
@@ -503,6 +554,12 @@ function ProfileView({ username }: { username: string }) {
                   <p className="mt-1 break-all text-2xl text-indigo-600 dark:text-indigo-400">
                     @{profile.username}
                   </p>
+                  {profile.banned && (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
+                      <BlockIcon sx={{ fontSize: 14 }} />
+                      Cuenta baneada
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -527,15 +584,51 @@ function ProfileView({ username }: { username: string }) {
                       Cerrar sesión
                     </button>
                   </>
+                ) : isAdmin ? (
+                  // Los admins no reportan: moderan. Banear exige un motivo; si la
+                  // cuenta ya está baneada, se ofrece levantar el baneo.
+                  profile.banned ? (
+                    <button
+                      type="button"
+                      onClick={handleUnban}
+                      disabled={unbanning}
+                      className={grayButtonClass}
+                    >
+                      {unbanning ? "Levantando..." : "Desbanear usuario"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModerationError(null);
+                        setBanning(true);
+                      }}
+                      className="btn-danger"
+                    >
+                      Banear usuario
+                    </button>
+                  )
                 ) : (
                   <button
                     type="button"
-                    onClick={handleReport}
-                    disabled={reported}
+                    onClick={handleReportClick}
+                    disabled={reported || profile.banned}
                     className={grayButtonClass}
                   >
-                    {reported ? "Usuario reportado" : "Reportar usuario"}
+                    {profile.banned
+                      ? "Usuario baneado"
+                      : reported
+                        ? "Usuario reportado"
+                        : "Reportar usuario"}
                   </button>
+                )}
+                {moderationError && (
+                  <p
+                    role="alert"
+                    className="w-full text-sm text-red-600 dark:text-red-400"
+                  >
+                    {moderationError}
+                  </p>
                 )}
               </div>
             )}
@@ -596,6 +689,7 @@ function ProfileView({ username }: { username: string }) {
                       // basurero (eliminar).
                       onEdit={isOwnProfile ? () => setEditingMemeId(meme.id) : undefined}
                       onDelete={isOwnProfile ? () => setDeletingMemeId(meme.id) : undefined}
+                      underReview={isOwnProfile && memesUnderReview.has(meme.id)}
                       moderation={moderation}
                     />
                   </div>
@@ -633,7 +727,11 @@ function ProfileView({ username }: { username: string }) {
             // El key reinicia el formulario si se edita otro meme.
             key={memeToEdit.id}
             meme={memeToEdit}
-            onClose={() => setEditingMemeId(null)}
+            onClose={() => {
+              setEditingMemeId(null);
+              // Por si el meme se reportó mientras la página estaba abierta.
+              void refreshUnderReview();
+            }}
             onUpdated={handleMemeUpdated}
             onSessionExpired={handleSessionExpired}
           />
@@ -643,12 +741,41 @@ function ProfileView({ username }: { username: string }) {
           <DeleteMemeModal
             key={memeToDelete.id}
             meme={memeToDelete}
-            onClose={() => setDeletingMemeId(null)}
+            onClose={() => {
+              setDeletingMemeId(null);
+              void refreshUnderReview();
+            }}
             onDeleted={handleMemeDeleted}
             onSessionExpired={handleSessionExpired}
           />
         )}
       </div>
+
+      {/* Reportar a este usuario (formulario igual al de memes y comentarios). */}
+      {state.status === "ok" && reporting && (
+        <ReportModal
+          target="user"
+          username={state.profile.username}
+          onClose={() => setReporting(false)}
+          onReported={() => setReported(true)}
+        />
+      )}
+
+      {/* Banear a este usuario (solo admins). El motivo es obligatorio. */}
+      {state.status === "ok" && banning && (
+        <ModerationReasonModal
+          title={`¿Banear a @${state.profile.username}?`}
+          description="No podrá iniciar sesión y, si tiene la sesión abierta, se cerrará al instante. Sus publicaciones y comentarios no se eliminan. El motivo queda registrado y solo lo ven los administradores."
+          confirmLabel="Banear"
+          busyLabel="Baneando..."
+          icon={<BlockIcon fontSize="inherit" />}
+          onConfirm={async (reason) => {
+            await adminService.banUser(state.profile.username, reason);
+            setProfileBanned(true);
+          }}
+          onClose={() => setBanning(false)}
+        />
+      )}
 
       <footer className="px-4 pb-5 pt-2 text-center text-xs text-gray-500 dark:text-gray-500 sm:text-sm">
         v0.0.1 · © 2026 Cabo Verde · Todos los derechos reservados

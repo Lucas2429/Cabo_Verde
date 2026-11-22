@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import BlockIcon from "@mui/icons-material/Block";
 import Header from "../components/Header";
 import ModerationReasonModal from "../components/ModerationReasonModal";
 import UserAvatar from "../components/UserAvatar";
 import { useSessionExpired } from "../hooks/useSessionExpired";
+import { useAdminStore } from "../stores/adminStore";
 import adminService from "../services/admin";
 import {
   REPORT_REASON_LABELS,
@@ -33,7 +35,7 @@ const formatDate = (iso: string): string =>
 const shortReason = (reason: ReportReason): string =>
   REPORT_REASON_LABELS[reason].replace(/\.$/, "");
 
-// Motivo más repetido entre los reportes: se sugiere al eliminar.
+// Motivo más repetido entre los reportes: se sugiere al eliminar o banear.
 const topReason = (reports: ReportEntry[]): string => {
   const counts = new Map<ReportReason, number>();
   for (const report of reports) {
@@ -48,11 +50,11 @@ const describeActionError = (error: unknown): string => {
     if (!error.response) return "No se pudo conectar con el servidor.";
     switch (error.response.status) {
       case 403:
-        return "No puedes moderar contenido de otro administrador.";
+        return "No puedes moderar a otro administrador ni su contenido.";
       case 404:
-        return "Este contenido ya no existe.";
+        return "Esto ya no existe.";
       case 409:
-        return "Este contenido ya fue eliminado.";
+        return "Esto ya fue moderado (por ejemplo, por otro administrador).";
     }
   }
   return "No se pudo completar la acción. Intenta nuevamente.";
@@ -69,9 +71,12 @@ type ListState<T> =
 
 // Pide una lista de la administración. Cada lista se monta con una `key` que
 // cambia con la pestaña y el filtro, así empieza de cero al cambiarlos. `reload`
-// la vuelve a pedir (después de una acción) sin vaciarla: no hay parpadeo.
+// la vuelve a pedir (después de una acción) sin vaciarla: no hay parpadeo. Como
+// toda acción puede encender o apagar una alerta, también refresca el número de
+// alertas del header y de las pestañas.
 function useAdminList<T>(fetcher: () => Promise<T[]>) {
   const handleSessionExpired = useSessionExpired();
+  const refreshAlerts = useAdminStore((store) => store.refreshAlerts);
   const [state, setState] = useState<ListState<T>>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -97,7 +102,12 @@ function useAdminList<T>(fetcher: () => Promise<T[]>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
 
-  return { state, reload: () => setReloadKey((key) => key + 1) };
+  const reload = () => {
+    setReloadKey((key) => key + 1);
+    void refreshAlerts();
+  };
+
+  return { state, reload };
 }
 
 // Mensajes de carga, error y lista vacía comunes a las tres pestañas.
@@ -152,6 +162,36 @@ function ReasonSummary({ reports }: { reports: ReportEntry[] }) {
   );
 }
 
+// Cuántos reportes tiene un contenido o usuario. Las listas van de más a menos
+// reportes, así que el número hace visible el orden. Si `alert` es true (el
+// backend lo marcó en alerta: llegó al umbral de reportes pendientes), se
+// destaca en rojo: es lo que debe revisar primero un admin y lo que enciende la
+// marca del botón "Reportes" del header. El umbral lo entrega el backend.
+function ReportCountBadge({ count, alert }: { count: number; alert: boolean }) {
+  const threshold = useAdminStore((store) => store.alerts?.threshold);
+  const noun = count === 1 ? "reporte" : "reportes";
+
+  if (alert) {
+    return (
+      <span
+        title={
+          threshold
+            ? `Tiene ${threshold} o más reportes pendientes: hay que revisarlo`
+            : "Tiene muchos reportes pendientes: hay que revisarlo"
+        }
+        className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white"
+      >
+        Alerta · {count} {noun} pendientes
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+      {count} {noun}
+    </span>
+  );
+}
+
 const STATUS_LABELS = { pending: "Pendiente", accepted: "Aceptado", dismissed: "Descartado" };
 
 // Lista desplegable con el detalle de cada reporte (quién, cuándo y por qué).
@@ -191,11 +231,12 @@ function ReportsDetails({ reports }: { reports: ReportEntry[] }) {
   );
 }
 
-function RemovalNotice({ removal, noun }: { removal: Removal; noun: string }) {
+// Aviso de una acción de moderación ya hecha: qué se hizo, quién, cuándo y por
+// qué (por ejemplo "Publicación eliminada", "Usuario baneado").
+function RemovalNotice({ removal, what }: { removal: Removal; what: string }) {
   return (
     <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
-      {noun} eliminad{noun === "Publicación" ? "a" : "o"} por @{removal.by} el{" "}
-      {formatDate(removal.at)}.
+      {what} por @{removal.by} el {formatDate(removal.at)}.
       {removal.reason && (
         <>
           {" "}
@@ -247,10 +288,11 @@ function MemeReportCard({
   filter: ReportFilter;
   onChanged: () => void;
 }) {
-  const { meme, removal, reports } = item;
+  const { meme, removal, reports, inAlert } = item;
   const { busy, error, run } = useModerationAction(onChanged);
   const [removing, setRemoving] = useState(false);
   const pending = filter === "pending";
+  const pendingCount = reports.filter((report) => report.status === "pending").length;
 
   return (
     <article className="surface flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
@@ -283,14 +325,20 @@ function MemeReportCard({
             · {formatDate(meme.createdAt)} · Likes: {meme.likes} · Dislikes:{" "}
             {meme.dislikes}
           </p>
-          {meme.commentsLocked && (
-            <span className="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-300">
-              Comentarios limitados
-            </span>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ReportCountBadge
+              count={inAlert ? pendingCount : reports.length}
+              alert={inAlert}
+            />
+            {meme.commentsLocked && (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-300">
+                Comentarios limitados
+              </span>
+            )}
+          </div>
         </div>
 
-        {removal && <RemovalNotice removal={removal} noun="Publicación" />}
+        {removal && <RemovalNotice removal={removal} what="Publicación eliminada" />}
 
         <ReasonSummary reports={reports} />
         <ReportsDetails reports={reports} />
@@ -399,10 +447,11 @@ function CommentReportCard({
   filter: ReportFilter;
   onChanged: () => void;
 }) {
-  const { comment, meme, removal, reports } = item;
+  const { comment, meme, removal, reports, inAlert } = item;
   const { busy, error, run } = useModerationAction(onChanged);
   const [removing, setRemoving] = useState(false);
   const pending = filter === "pending";
+  const pendingCount = reports.filter((report) => report.status === "pending").length;
 
   return (
     <article className="surface flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
@@ -438,9 +487,15 @@ function CommentReportCard({
             · {formatDate(comment.createdAt)}
             {meme?.removed && " · La publicación fue eliminada"}
           </p>
+          <div className="mt-2">
+            <ReportCountBadge
+              count={inAlert ? pendingCount : reports.length}
+              alert={inAlert}
+            />
+          </div>
         </div>
 
-        {removal && <RemovalNotice removal={removal} noun="Comentario" />}
+        {removal && <RemovalNotice removal={removal} what="Comentario eliminado" />}
 
         <ReasonSummary reports={reports} />
         <ReportsDetails reports={reports} />
@@ -527,62 +582,144 @@ function CommentsTab({ filter }: { filter: ReportFilter }) {
 // Pestaña "Usuarios"
 // ---------------------------------------------------------------------------
 
-function UserRow({ user }: { user: ReportedUserItem }) {
+function UserReportCard({
+  item,
+  filter,
+  onChanged,
+}: {
+  item: ReportedUserItem;
+  filter: ReportFilter;
+  onChanged: () => void;
+}) {
+  const { user, ban, reports, inAlert } = item;
+  const { busy, error, run } = useModerationAction(onChanged);
+  const [banning, setBanning] = useState(false);
+  const pending = filter === "pending";
+  const pendingCount = reports.filter((report) => report.status === "pending").length;
+
   return (
-    <li className="flex items-center gap-4 rounded-full border border-gray-300 bg-white px-4 py-3 shadow-sm dark:border-gray-600 dark:bg-gray-900">
-      <UserAvatar
-        src={user.avatar}
-        name={user.displayName}
-        className="h-14 w-14 text-xl"
-      />
-      <div className="min-w-0 flex-1">
-        <Link
-          to={`/u/${encodeURIComponent(user.username)}`}
-          className="block truncate font-bold text-gray-900 hover:underline dark:text-gray-100"
-        >
-          {user.displayName}
-        </Link>
-        <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-          @{user.username} · {user.department}
-        </p>
+    <article className="surface flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
+      <Link
+        to={`/u/${encodeURIComponent(user.username)}`}
+        title="Ver perfil"
+        className="shrink-0"
+      >
+        <UserAvatar
+          src={user.avatar}
+          name={user.displayName}
+          className="h-24 w-24 text-4xl"
+        />
+      </Link>
+
+      <div className="min-w-0 flex-1 space-y-3">
+        <div>
+          <Link
+            to={`/u/${encodeURIComponent(user.username)}`}
+            className="block break-words text-lg font-bold text-gray-900 hover:underline dark:text-gray-100"
+          >
+            {user.displayName}
+          </Link>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            @{user.username} · {user.department}
+          </p>
+          <div className="mt-2">
+            <ReportCountBadge
+              count={inAlert ? pendingCount : reports.length}
+              alert={inAlert}
+            />
+          </div>
+        </div>
+
+        {ban && <RemovalNotice removal={ban} what="Usuario baneado" />}
+
+        <ReasonSummary reports={reports} />
+        <ReportsDetails reports={reports} />
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {!ban && pending && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(() => adminService.dismissUserReports(user.username))}
+                className="btn-secondary !px-4 !py-2"
+              >
+                Descartar reportes
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setBanning(true)}
+                className="btn-danger !px-4 !py-2"
+              >
+                Banear usuario
+              </button>
+            </>
+          )}
+          {/* Un baneo se puede levantar (por ejemplo, si fue un error). */}
+          {ban && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(() => adminService.unbanUser(user.username))}
+              className="btn-secondary !px-4 !py-2"
+            >
+              Desbanear usuario
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
       </div>
-      <div className="shrink-0 text-right text-sm font-semibold">
-        <p
-          className="text-red-700 dark:text-red-400"
-          title="Reportes que terminaron con el contenido eliminado"
-        >
-          Aceptados: {user.accepted}
-        </p>
-        <p
-          className="text-gray-600 dark:text-gray-400"
-          title="Reportes que todavía nadie revisa"
-        >
-          Pendientes: {user.pending}
-        </p>
-      </div>
-    </li>
+
+      {banning && (
+        <ModerationReasonModal
+          title={`¿Banear a @${user.username}?`}
+          description="No podrá iniciar sesión y, si tiene la sesión abierta, se cerrará al instante. Sus publicaciones y comentarios no se eliminan. El motivo queda registrado y solo lo ven los administradores."
+          defaultReason={topReason(reports)}
+          confirmLabel="Banear"
+          busyLabel="Baneando..."
+          icon={<BlockIcon fontSize="inherit" />}
+          onConfirm={async (reason) => {
+            await adminService.banUser(user.username, reason);
+            onChanged();
+          }}
+          onClose={() => setBanning(false)}
+        />
+      )}
+    </article>
   );
 }
 
-function UsersTab() {
-  const { state } = useAdminList(() => adminService.getReportedUsers());
+function UsersTab({ filter }: { filter: ReportFilter }) {
+  const { state, reload } = useAdminList(() => adminService.getReportedUsers(filter));
 
   return (
-    <>
-      <ListStatus state={state} emptyText="Ningún usuario tiene reportes.">
-        {(items) => (
-          <ul className="grid gap-3 lg:grid-cols-2">
-            {items.map((user) => (
-              <UserRow key={user.username} user={user} />
-            ))}
-          </ul>
-        )}
-      </ListStatus>
-      <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
-        “Aceptados” cuenta los reportes que terminaron con contenido eliminado;
-        “Pendientes”, los que todavía nadie revisa. Los descartados no cuentan.
-      </p>
-    </>
+    <ListStatus
+      state={state}
+      emptyText={
+        filter === "pending"
+          ? "No hay usuarios con reportes pendientes."
+          : "Todavía no hay usuarios con reportes resueltos."
+      }
+    >
+      {(items) => (
+        <div className="space-y-4">
+          {items.map((item) => (
+            <UserReportCard
+              key={item.user.username}
+              item={item}
+              filter={filter}
+              onChanged={reload}
+            />
+          ))}
+        </div>
+      )}
+    </ListStatus>
   );
 }
 
@@ -593,6 +730,9 @@ function UsersTab() {
 function AdminReportsView() {
   const [tab, setTab] = useState<Tab>("memes");
   const [filter, setFilter] = useState<ReportFilter>("pending");
+  // Cuántos elementos de cada pestaña están en alerta (lo calcula el backend). Se
+  // muestra como una marca roja en la pestaña correspondiente.
+  const alerts = useAdminStore((store) => store.alerts);
 
   return (
     <div className="app-bg">
@@ -607,49 +747,60 @@ function AdminReportsView() {
             aria-label="Tipo de reporte"
             className="mt-6 flex flex-wrap justify-center gap-3 sm:gap-6"
           >
-            {TABS.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => setTab(id)}
-                className={`min-w-32 cursor-pointer rounded-full px-8 py-3 text-lg font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:min-w-48 ${
-                  tab === id
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-4 ring-indigo-300 dark:ring-indigo-400/50"
-                    : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            {TABS.map(({ id, label }) => {
+              const alertCount = alerts?.[id] ?? 0;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => setTab(id)}
+                  className={`relative min-w-32 cursor-pointer rounded-full px-8 py-3 text-lg font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:min-w-48 ${
+                    tab === id
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-4 ring-indigo-300 dark:ring-indigo-400/50"
+                      : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25"
+                  }`}
+                >
+                  {label}
+                  {alertCount > 0 && (
+                    <span
+                      title={`${alertCount} en alerta`}
+                      aria-label={`${alertCount} en alerta`}
+                      className="absolute -right-1.5 -top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900"
+                    >
+                      {alertCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Posts y comentarios se pueden ver pendientes o ya resueltos. */}
-          {tab !== "users" && (
-            <div
-              role="group"
-              aria-label="Estado de los reportes"
-              className="mt-6 flex justify-center gap-2"
+          {/* Las tres pestañas se pueden ver con los reportes pendientes o ya
+              resueltos. */}
+          <div
+            role="group"
+            aria-label="Estado de los reportes"
+            className="mt-6 flex justify-center gap-2"
+          >
+            <button
+              type="button"
+              className="chip"
+              aria-pressed={filter === "pending"}
+              onClick={() => setFilter("pending")}
             >
-              <button
-                type="button"
-                className="chip"
-                aria-pressed={filter === "pending"}
-                onClick={() => setFilter("pending")}
-              >
-                Pendientes
-              </button>
-              <button
-                type="button"
-                className="chip"
-                aria-pressed={filter === "resolved"}
-                onClick={() => setFilter("resolved")}
-              >
-                Resueltos
-              </button>
-            </div>
-          )}
+              Pendientes
+            </button>
+            <button
+              type="button"
+              className="chip"
+              aria-pressed={filter === "resolved"}
+              onClick={() => setFilter("resolved")}
+            >
+              Resueltos
+            </button>
+          </div>
 
           <div className="mt-6">
             {/* La key reinicia la lista (vuelve a "Cargando...") al cambiar de
@@ -658,7 +809,7 @@ function AdminReportsView() {
             {tab === "comments" && (
               <CommentsTab key={`comments-${filter}`} filter={filter} />
             )}
-            {tab === "users" && <UsersTab key="users" />}
+            {tab === "users" && <UsersTab key={`users-${filter}`} filter={filter} />}
           </div>
         </main>
       </div>

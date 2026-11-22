@@ -23,11 +23,19 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
 
 // Límite que valida el backend (backend/src/models/report.ts).
 export const MAX_REPORT_DETAILS_LENGTH = 200;
-// Límites del motivo que escribe un admin al eliminar algo (backend/src/controllers/admin.ts).
+// Límites del motivo que escribe un admin al eliminar algo o banear a alguien
+// (backend/src/controllers/admin.ts).
 export const MIN_REMOVAL_REASON_LENGTH = 3;
 export const MAX_REMOVAL_REASON_LENGTH = 200;
 
 export type ReportStatus = "pending" | "accepted" | "dismissed";
+
+// Contenido PROPIO del usuario que tiene reportes pendientes (ids). Mientras un
+// admin no los resuelva, el autor no puede editarlo ni eliminarlo.
+export type ContentUnderReview = {
+  memes: string[];
+  comments: string[];
+};
 
 // Qué lista de reportes se ve: los que esperan revisión o los ya resueltos.
 export type ReportFilter = "pending" | "resolved";
@@ -43,17 +51,23 @@ export type ReportEntry = {
   createdAt: string;
 };
 
-// Datos de la eliminación por moderación (null si el contenido sigue visible).
+// Datos de una acción de moderación ya hecha: la eliminación de un contenido o
+// el baneo de un usuario (null si el contenido sigue visible o el usuario activo).
 export type Removal = {
   at: string;
   by: string;
   reason: string | null;
 };
 
+// Todos los elementos de las listas de reportes traen `inAlert`: lo calcula el
+// backend (es la única definición del umbral de alerta), y significa que tienen
+// REPORT_ALERT_THRESHOLD o más reportes pendientes y siguen activos.
+
 export type ReportedMemeItem = {
   // El meme tiene el mismo formato que en la galería (incluye `commentsLocked`).
   meme: MemesData;
   removal: Removal | null;
+  inAlert: boolean;
   reports: ReportEntry[];
 };
 
@@ -68,15 +82,28 @@ export type ReportedCommentItem = {
   // Post donde está el comentario (null si ya no existe).
   meme: { id: string; image: string; content: string; removed: boolean } | null;
   removal: Removal | null;
+  inAlert: boolean;
   reports: ReportEntry[];
 };
 
 export type ReportedUserItem = {
-  username: string;
-  displayName: string;
-  avatar: string | null;
-  department: string;
-  // Reportes sin revisar y reportes aceptados (el contenido se eliminó).
-  pending: number;
-  accepted: number;
+  user: {
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    department: string;
+  };
+  // Datos del baneo si el usuario ya fue baneado (null si su cuenta está activa).
+  ban: Removal | null;
+  inAlert: boolean;
+  reports: ReportEntry[];
+};
+
+// Cuántos contenidos hay en alerta, por tipo, y el umbral que usa el backend
+// (así el frontend no lo tiene duplicado). Responde GET /api/admin/reports/alerts.
+export type AlertCounts = {
+  threshold: number;
+  memes: number;
+  comments: number;
+  users: number;
 };
