@@ -12,6 +12,13 @@ import { commentReportRouter } from "./reports";
 
 const MAX_CONTENT_LENGTH = 300;
 
+// Parámetros de la URL que llegan a estas rutas. El `:id` del meme viene del
+// router padre (mergeParams) y Express no lo incluye en los tipos de las rutas
+// hijas, así que se declara aquí. Son `type` y no `interface` para que encajen
+// con los parámetros genéricos de Express.
+type MemeParams = { id: string };
+type CommentParams = { id: string; commentId: string };
+
 // Se monta en /api/memes/:id/comments (ver controllers/memes.ts). mergeParams
 // hace que aquí también esté disponible el :id del meme.
 const router = express.Router({ mergeParams: true });
@@ -21,7 +28,7 @@ router.use("/:commentId/report", commentReportRouter);
 
 // Público: cualquiera (incluidos invitados) puede leer los comentarios.
 // Del más nuevo al más viejo, igual que la galería.
-router.get("/", async (request, response) => {
+router.get<MemeParams>("/", async (request, response) => {
   // Validar el ID del meme
   if (!mongoose.isValidObjectId(request.params.id)) {
     response.status(400).json({ error: "invalid meme id", });
@@ -44,7 +51,7 @@ router.get("/", async (request, response) => {
 //   - parent:  (opcional) id del comentario al que se responde. Debe ser un
 //              comentario de este mismo meme. Si falta o es null, el comentario
 //              es de primer nivel.
-router.post("/", withUser, async (request, response) => {
+router.post<MemeParams>("/", withUser, async (request, response) => {
 
   // Validar el ID del meme
   if (!mongoose.isValidObjectId(request.params.id)) {
@@ -123,7 +130,7 @@ router.post("/", withUser, async (request, response) => {
  Editar un comentario propio.
  PATCH /api/memes/:id/comments/:commentId
  */
-router.patch("/:commentId", withUser, async (request, response) => {
+router.patch<CommentParams>("/:commentId", withUser, async (request, response) => {
   const { id: memeId, commentId } = request.params;
 
   // Validar identificadores
@@ -194,7 +201,7 @@ router.patch("/:commentId", withUser, async (request, response) => {
  DELETE /api/memes/:id/comments/:commentId
  */
 
-router.delete("/:commentId", withUser, async (request, response) => {
+router.delete<CommentParams>("/:commentId", withUser, async (request, response) => {
   const { id: memeId, commentId } = request.params;
 
   if (!mongoose.isValidObjectId(memeId) || !mongoose.isValidObjectId(commentId)) {

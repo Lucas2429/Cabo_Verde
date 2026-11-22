@@ -12,6 +12,10 @@ import { withUser } from "../utils/middleware";
 // hace que aquí también esté disponible el :id del meme.
 const router = express.Router({ mergeParams: true });
 
+// El `:id` viene del router padre y Express no lo incluye en los tipos de las
+// rutas hijas, así que se declara aquí.
+type MemeParams = { id: string };
+
 const isReactionType = (value: unknown): value is ReactionType =>
   typeof value === "string" && (REACTION_TYPES as readonly string[]).includes(value);
 
@@ -28,7 +32,7 @@ const buildState = async (memeId: string, type: ReactionType | null) => {
 //   - type: "like" o "dislike"
 // Como cada usuario tiene una sola reacción por meme, pasar de like a dislike
 // reemplaza la anterior en vez de sumar una nueva.
-router.put("/", withUser, async (request, response) => {
+router.put<MemeParams>("/", withUser, async (request, response) => {
   const type = request.body?.type;
 
   if (!isReactionType(type)) {
@@ -56,7 +60,7 @@ router.put("/", withUser, async (request, response) => {
 
 // Solo usuarios con sesión. Quita la reacción del usuario a este meme. Si no
 // había ninguna, no pasa nada (la operación es idempotente).
-router.delete("/", withUser, async (request, response) => {
+router.delete<MemeParams>("/", withUser, async (request, response) => {
   const memeExists = await MemeModel.exists({ _id: request.params.id });
   if (!memeExists) {
     response.status(404).json({ error: "meme not found" });

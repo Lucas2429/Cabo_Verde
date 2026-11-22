@@ -125,7 +125,13 @@ const saveReport = async (data: NewReport): Promise<Failure | null> => {
 
 export const memeReportRouter = express.Router({ mergeParams: true });
 
-memeReportRouter.post("/", withUser, async (request, response) => {
+// Los parámetros de la URL vienen de los routers padre (mergeParams) y Express
+// no los incluye en los tipos de las rutas hijas, así que se declaran aquí.
+type MemeParams = { id: string };
+type CommentParams = { id: string; commentId: string };
+type UserParams = { username: string };
+
+memeReportRouter.post<MemeParams>("/", withUser, async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) {
     response.status(400).json({ error: "invalid meme id" });
     return;
@@ -161,7 +167,7 @@ memeReportRouter.post("/", withUser, async (request, response) => {
 
 export const commentReportRouter = express.Router({ mergeParams: true });
 
-commentReportRouter.post("/", withUser, async (request, response) => {
+commentReportRouter.post<CommentParams>("/", withUser, async (request, response) => {
   const { id: memeId, commentId } = request.params;
   if (!mongoose.isValidObjectId(memeId) || !mongoose.isValidObjectId(commentId)) {
     response.status(400).json({ error: "invalid id" });
@@ -215,7 +221,7 @@ export const userReportRouter = express.Router({ mergeParams: true });
 // pueden reportar: ningún admin puede moderar a otro, así que el reporte no
 // tendría quién lo resuelva. Un usuario ya baneado tampoco: ya no hay nada que
 // decidir.
-userReportRouter.post("/", withUser, async (request, response) => {
+userReportRouter.post<UserParams>("/", withUser, async (request, response) => {
   const body = parseBody(request.body);
   if ("error" in body) {
     response.status(400).json({ error: body.error });
