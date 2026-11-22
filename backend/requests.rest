@@ -464,3 +464,68 @@ GET http://localhost:3001/api/memes?department=DCC&tag=uno
 
 ### TEST 17 - Hashtag inválido -> 400
 GET http://localhost:3001/api/memes?tag=hola!
+
+### TEST 18 - Editar descripción y etiquetas de un meme propio (debe responder 200)
+# Esperado: "departments": ["Geología"], "tags": ["parcial","editado"]
+# ("#Parcial" y "Editado" se normalizan igual que al subir.)
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Meme editado",
+  "departments": ["Geología"],
+  "tags": ["#Parcial", "Editado"]
+}
+
+### TEST 19 - Editar SOLO la descripción (las etiquetas deben quedar intactas)
+# Esperado: 200, y departments y tags iguales a los del TEST 18.
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Solo cambio la descripción"
+}
+
+### TEST 20 - Quitar todas las etiquetas (arreglos vacíos)
+# Esperado: 200, con "departments": [] y "tags": [].
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Sin etiquetas",
+  "departments": [],
+  "tags": []
+}
+
+### TEST 21 - Carrera inválida (debe responder 400 "departments must be among...")
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Carrera mala",
+  "departments": ["Brujería"]
+}
+
+### TEST 22 - Hashtag inválido (debe responder 400 "each tag must be...")
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Hashtag malo",
+  "tags": ["hola mundo"]
+}
+
+### TEST 23 - Más de 5 hashtags (debe responder 400 "at most 5 tags allowed")
+PATCH http://localhost:3001/api/memes/<ID_DEL_MEME>
+X-CSRF-Token: {{login.response.headers.X-CSRF-Token}}
+Content-Type: application/json
+
+{
+  "content": "Demasiados",
+  "tags": ["a", "b", "c", "d", "e", "f"]
+}

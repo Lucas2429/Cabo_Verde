@@ -40,6 +40,38 @@ const normalizeTag = (value: unknown): string | null => {
     : null;
 };
 
+// Valida y limpia las carreras y los hashtags que llegan en el cuerpo de una
+// petición (la usan POST y PATCH). Un campo que no viene queda como undefined,
+// para que el PATCH sepa que no hay que tocarlo.
+const parseMemeTags = (
+  body: unknown
+): { departments?: string[]; tags?: string[] } | { error: string } => {
+  const data = (body ?? {}) as { departments?: unknown; tags?: unknown };
+  const result: { departments?: string[]; tags?: string[] } = {};
+
+  if (data.departments !== undefined) {
+    const list = toList(data.departments);
+    if (!list.every(isDepartment)) {
+      return { error: `departments must be among: ${DEPARTMENTS.join(", ")}` };
+    }
+    result.departments = [...new Set(list)];
+  }
+
+  if (data.tags !== undefined) {
+    const list = toList(data.tags).map(normalizeTag);
+    if (list.some((tag) => tag === null)) {
+      return { error: `each tag must be 1-${MAX_TAG_LENGTH} letters, numbers or _`, };
+    }
+    const tags = [...new Set(list as string[])];
+    if (tags.length > MAX_TAGS) {
+      return { error: `at most ${MAX_TAGS} tags allowed` };
+    }
+    result.tags = tags;
+  }
+
+  return result;
+};
+
 const router = express.Router();
 
 // Comentarios de un meme: /api/memes/:id/comments
@@ -93,17 +125,17 @@ router.get("/", async (request, response) => {
     // Etiquetado en el meme O autor de esa carrera (basta con alguna).
     ...(departments.length > 0
       ? {
-          $or: [
-            { departments: { $in: departments } },
-            {
-              user: {
-                $in: await User.distinct("_id", {
-                  department: { $in: departments },
-                }),
-              },
+        $or: [
+          { departments: { $in: departments } },
+          {
+            user: {
+              $in: await User.distinct("_id", {
+                department: { $in: departments },
+              }),
             },
-          ],
-        }
+          },
+        ],
+      }
       : {}),
     // Tiene TODOS los hashtags elegidos ($all = todos; $in = alguno).
     ...(tagFilters.length > 0 ? { tags: { $all: tagFilters } } : {}),
@@ -209,27 +241,14 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     return;
   }
 
-  // etiqueta especial de carrera (opcional)
-  const departmentList = toList(request.body?.departments);
-  if (!departmentList.every(isDepartment)) {
-    response.status(400).json({ error: `departments must be among: ${DEPARTMENTS.join(", ")}`, });
+    // Carreras y hashtags (opcionales): se validan con la función compartida.
+  const parsedTags = parseMemeTags(request.body);
+  if ("error" in parsedTags) {
+    response.status(400).json({ error: parsedTags.error });
     return;
   }
-
-  const memeDepartments = [...new Set(departmentList)];
-
-  // hashtags libres (opcionales)
-  const tagList = toList(request.body?.tags).map(normalizeTag);
-  if (tagList.some((tag) => tag === null)) {
-    response.status(400).json({ error: `each tag must be 1-${MAX_TAG_LENGTH} letters, numbers or _`, });
-    return;
-  }
-
-  const tags = [...new Set(tagList as string[])];
-  if (tags.length > MAX_TAGS) {
-    response.status(400).json({ error: `at most ${MAX_TAGS} tags allowed` });
-    return;
-  }
+  const memeDepartments = parsedTags.departments ?? [];
+  const tags = parsedTags.tags ?? [];
 
   if (!request.file) {
     response.status(400).json({ error: "image is required" });
@@ -248,8 +267,8 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     const meme = new MemeModel({
       content,
       image,
-      departments: memeDepartments,   
-      tags,                          
+      departments: memeDepartments,
+      tags,
       // El autor sale de la sesión, nunca de lo que mande el cliente.
       author: user.username,
       user: user._id,
@@ -266,8 +285,10 @@ router.post("/", withUser, uploadImage, async (request, response) => {
 
 // Solo el AUTOR del meme puede editarlo. El usuario sale de la sesión y se
 // compara con el dueño guardado en la BD (nunca con algo que mande el cliente).
-// Espera JSON con el campo:
-//   - content: nueva descripción (1 a 300 caracteres)
+// Espera JSON con los campos:
+//   - content:     nueva descripción (1 a 300 caracteres)
+//   - departments: (opcional) carreras del meme; si viene, reemplaza las actuales
+//   - tags:        (opcional) hashtags del meme; si viene, reemplaza los actuales
 // Responde 404 si el meme no existe y 403 si es de otro usuario.
 router.patch("/:id", withUser, async (request, response) => {
   const meme = await MemeModel.findById(request.params.id);
@@ -294,7 +315,17 @@ router.patch("/:id", withUser, async (request, response) => {
     return;
   }
 
+  // Carreras y hashtags son opcionales: si vienen (aunque sea vacíos, []),
+  // reemplazan a los actuales; si no vienen, quedan como estaban.
+  const parsedTags = parseMemeTags(request.body);
+  if ("error" in parsedTags) {
+    response.status(400).json({ error: parsedTags.error });
+    return;
+  }
+
   meme.content = content;
+  if (parsedTags.departments) meme.departments = parsedTags.departments;
+  if (parsedTags.tags) meme.tags = parsedTags.tags;
   const savedMeme = await meme.save();
 
   // Se devuelve con los totales de likes y dislikes, igual que el resto de los
