@@ -54,7 +54,7 @@ function CategoryBar({ selected, onToggle, order, onToggleOrder }: Props) {
         onClick={onToggleOrder}
         className="chip !border-indigo-300 !text-indigo-700 dark:!border-indigo-400/60 dark:!text-indigo-300"
       >
-        Filtrar
+        Orden
         {newestFirst ? (
           <ArrowDownwardIcon fontSize="small" />
         ) : (
