@@ -1,86 +1,13 @@
-import { test, expect, type Page } from '@playwright/test';
-
-const PASSWORD = 'e2e-password';
-const TEST_IMAGE = {
-  name: 'e2e.png',
-  mimeType: 'image/png',
-  buffer: Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==',
-    'base64',
-  ),
-};
-
-function uniqueUsername() {
-  return `e2e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-}
-
-async function registerUser(
-  page: Page,
-  username: string,
-  department = 'DCC',
-) {
-  await page.goto('/login');
-  await page.getByRole('tab', { name: 'Crear cuenta' }).click();
-  await page.getByLabel('Usuario').fill(username);
-  await page.getByLabel('Correo').fill(`${username}@example.com`);
-  await page.getByLabel('Contraseña').fill(PASSWORD);
-  await page.getByRole('combobox').click();
-  await page.getByRole('option', { name: department, exact: true }).click();
-  await page.getByTestId('login-button').click();
-  await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible();
-}
-
-async function login(page: Page, username: string) {
-  await page.goto('/login');
-  await page.getByTestId('username').fill(username);
-  await page.getByTestId('password').fill(PASSWORD);
-  await page.getByTestId('login-button').click();
-  await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible();
-}
-
-async function logout(page: Page) {
-  await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
-  await expect(page.getByTestId('login-link')).toBeVisible();
-}
-
-async function uploadMeme(
-  page: Page,
-  content: string,
-) {
-  await page.getByTestId('addIcon').click();
-  await expect(page.getByRole('heading', { name: 'Añada su meme' })).toBeVisible();
-  await page.locator('#meme-image').setInputFiles(TEST_IMAGE);
-  await page.getByLabel('Descripción').fill(content);
-  await page.getByRole('button', { name: 'Add Meme' }).click();
-  await expect(page.getByRole('heading', { name: 'Añada su meme' })).toBeHidden();
-  await expect(memeCard(page, content)).toHaveCount(1);
-}
-
-function memeCard(page: Page, content: string) {
-  return page
-    .locator('main .columns-2xs > div')
-    .filter({ has: page.getByRole('img', { name: content, exact: true }) });
-}
-
-async function reactToMeme(
-  page: Page,
-  content: string,
-  reaction: 'Me gusta' | 'No me gusta',
-) {
-  const card = memeCard(page, content);
-  await expect(card).toHaveCount(1);
-  await card.hover();
-  const button = card.getByRole('button', { name: new RegExp(`^${reaction}`) });
-  const count = button.locator('span').last();
-  const before = Number(await count.innerText());
-  await button.click();
-  await expect(count).toHaveText(String(before + 1));
-}
-
-test('meme app title', async ({ page }) => {
-  await page.goto('/');
-  await expect(page).toHaveTitle('HIJOS DE LA (PUNTO).FOO');
-});
+import { test, expect } from '@playwright/test';
+import {
+  login,
+  logout,
+  memeCard,
+  reactToMeme,
+  registerUser,
+  uniqueUsername,
+  uploadMeme,
+} from './helper';
 
 test.describe('flujos E2E', () => {
   test('registrar un usuario e iniciar sesión', async ({ page }) => {

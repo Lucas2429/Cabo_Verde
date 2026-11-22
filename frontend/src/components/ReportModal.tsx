@@ -165,7 +165,7 @@ const ReportModal = ({
           >
             Reportar
           </h2>
-          <button
+          {!sent && <button
             type="button"
             onClick={onClose}
             disabled={submitting}
@@ -173,7 +173,7 @@ const ReportModal = ({
             aria-label="Cerrar"
           >
             <CloseIcon />
-          </button>
+          </button>}
         </div>
 
         {sent ? (
