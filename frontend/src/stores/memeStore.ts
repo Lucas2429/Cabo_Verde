@@ -26,6 +26,10 @@ interface MemeState {
   toggleTag: (tag: string) => void;
   clearTags: () => void;
   clearFilters: () => void;
+  // Deja SOLO ese filtro (reemplaza lo que hubiera). Se usa al tocar un
+  // hashtag o una carrera dentro del modal de un meme.
+  showOnlyTag: (tag: string) => void;
+  showOnlyDepartment: (department: Department) => void;
   toggleOrder: () => void;
   updateCounts: (
     memeId: string,
@@ -84,6 +88,9 @@ export const useMemeStore = create<MemeState>((set, get) => ({
   clearTags: () => set({ selectedTags: [] }),
 
   clearFilters: () => set({ selectedDepartments: [], selectedTags: [] }),
+  showOnlyTag: (tag) => set({ selectedTags: [tag], selectedDepartments: [] }),
+
+  showOnlyDepartment: (department) => set({ selectedDepartments: [department], selectedTags: [] }),
 
   toggleOrder: () =>
     set((state) => ({ order: state.order === "newest" ? "oldest" : "newest" })),

@@ -74,11 +74,22 @@ const create = (content: string, image: File, { departments = [], tags = [] }: C
     .then((response) => response.data);
 };
 
-// Cambia la descripción de un meme propio (el backend responde 403 si el meme
-// es de otro usuario).
-const update = (id: string, content: string) => {
+interface UpdateOptions {
+  // Si se indican, REEMPLAZAN las etiquetas actuales (aunque sea []).
+  // Si no se indican, el backend las deja como estaban.
+  departments?: Department[];
+  tags?: string[];
+}
+
+// Cambia la descripción (y, si se indican, las carreras y hashtags) de un meme
+// propio. El backend responde 403 si el meme es de otro usuario.
+const update = (id: string, content: string, { departments, tags }: UpdateOptions = {}) => {
   return axios
-    .patch<MemesData>(`${baseUrl}/${id}`, { content }, { headers: csrfHeaders() })
+    .patch<MemesData>(
+      `${baseUrl}/${id}`,
+      { content, departments, tags },
+      { headers: csrfHeaders() }
+    )
     .then((response) => response.data);
 };
 
