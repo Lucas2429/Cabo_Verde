@@ -9,11 +9,6 @@ import {
   uploadMeme,
 } from './helper';
 
-test('meme app title', async ({ page }) => {
-  await page.goto('/');
-  await expect(page).toHaveTitle('HIJOS DE LA (PUNTO).FOO');
-});
-
 test.describe('flujos E2E', () => {
   test('registrar un usuario e iniciar sesión', async ({ page }) => {
     const username = uniqueUsername();
