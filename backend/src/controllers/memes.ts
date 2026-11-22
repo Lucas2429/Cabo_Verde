@@ -22,6 +22,24 @@ const MAX_CONTENT_LENGTH = 300;
 const isDepartment = (value: unknown): value is (typeof DEPARTMENTS)[number] =>
   typeof value === "string" && (DEPARTMENTS as readonly string[]).includes(value);
 
+const MAX_TAGS = 5;
+const MAX_TAG_LENGTH = 30;
+// Letras (con tildes y ñ), números y guion bajo. Sin espacios ni símbolos.
+const TAG_PATTERN = /^[\p{L}\p{N}_]+$/u;
+
+// multer entrega un string si el campo llega una vez, y un arreglo si llega varias.
+const toList = (raw: unknown): unknown[] =>
+  raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+
+// "#Parcial " -> "parcial". Devuelve null si no es un hashtag válido.
+const normalizeTag = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const tag = value.trim().replace(/^#+/, "").toLowerCase();
+  return tag.length > 0 && tag.length <= MAX_TAG_LENGTH && TAG_PATTERN.test(tag)
+    ? tag
+    : null;
+};
+
 const router = express.Router();
 
 // Comentarios de un meme: /api/memes/:id/comments
@@ -62,15 +80,22 @@ router.get("/", async (request, response) => {
   }
   const direction = order === "oldest" ? 1 : -1;
 
-  // Se buscan los usuarios de esas carreras y luego sus memes (usa el índice
-  // user + createdAt de memes.ts).
+  // Un meme coincide si alguna de sus etiquetas está entre las carreras
+  // elegidas O si el autor pertenece a una de ellas.
   const filter =
     departments.length > 0
       ? {
-          user: {
-            $in: await User.distinct("_id", { department: { $in: departments } }),
+        $or: [
+          { departments: { $in: departments } },   // etiquetado en el meme
+          {
+            user: {
+              $in: await User.distinct("_id", {
+                department: { $in: departments },  // carrera del autor
+              }),
+            },
           },
-        }
+        ],
+      }
       : {};
 
   // _id como desempate: si dos memes tienen la misma fecha, el orden es estable.
@@ -130,19 +155,39 @@ router.get("/:id", async (request, response) => {
 //   - content: descripción (1 a 300 caracteres)
 //   - image:   archivo JPG/PNG/WEBP/GIF de hasta 2 MB
 router.post("/", withUser, uploadImage, async (request, response) => {
-  const content =
-    typeof request.body?.content === "string" ? request.body.content.trim() : "";
+  const content = typeof request.body?.content === "string" ? request.body.content.trim() : "";
 
   if (!content) {
     response.status(400).json({ error: "content is required" });
     return;
   }
   if (content.length > MAX_CONTENT_LENGTH) {
-    response.status(400).json({
-      error: `content must be at most ${MAX_CONTENT_LENGTH} characters long`,
-    });
+    response.status(400).json({ error: `content must be at most ${MAX_CONTENT_LENGTH} characters long`, });
     return;
   }
+
+  // etiqueta especial de carrera (opcional)
+  const departmentList = toList(request.body?.departments);
+  if (!departmentList.every(isDepartment)) {
+    response.status(400).json({ error: `departments must be among: ${DEPARTMENTS.join(", ")}`, });
+    return;
+  }
+
+  const memeDepartments = [...new Set(departmentList)];
+
+  // hashtags libres (opcionales)
+  const tagList = toList(request.body?.tags).map(normalizeTag);
+  if (tagList.some((tag) => tag === null)) {
+    response.status(400).json({ error: `each tag must be 1-${MAX_TAG_LENGTH} letters, numbers or _`, });
+    return;
+  }
+
+  const tags = [...new Set(tagList as string[])];
+  if (tags.length > MAX_TAGS) {
+    response.status(400).json({ error: `at most ${MAX_TAGS} tags allowed` });
+    return;
+  }
+
   if (!request.file) {
     response.status(400).json({ error: "image is required" });
     return;
@@ -160,6 +205,8 @@ router.post("/", withUser, uploadImage, async (request, response) => {
     const meme = new MemeModel({
       content,
       image,
+      departments: memeDepartments,   
+      tags,                          
       // El autor sale de la sesión, nunca de lo que mande el cliente.
       author: user.username,
       user: user._id,

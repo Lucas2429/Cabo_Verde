@@ -1,10 +1,13 @@
 import mongoose from "mongoose";
+import { DEPARTMENTS } from "./user";
 
 export interface MemeData {
   content: string;
   author: string;
   // URL pública de la imagen. Para memes subidos es "/uploads/<archivo>".
   image: string;
+  departments: string[];   
+  tags: string[];   
   user: mongoose.Types.ObjectId;
   // true si un admin limitó los comentarios: el meme y sus comentarios se
   // siguen viendo, pero nadie puede comentar ni responder más.
@@ -25,6 +28,8 @@ const memeSchema = new mongoose.Schema<MemeData>(
     content: { type: String, required: true, minlength: 1, maxlength: 300 },
     author: { type: String, required: true },
     image: { type: String, required: true },
+    departments: [{ type: String, enum: [...DEPARTMENTS] }],
+    tags: [{ type: String, maxlength: 30 }],
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     commentsLocked: { type: Boolean, default: false },
     removedAt: { type: Date, default: null },
@@ -36,6 +41,9 @@ const memeSchema = new mongoose.Schema<MemeData>(
   }
 );
 
+memeSchema.index({ departments: 1, createdAt: -1 });
+// para filtrar por etiqueta sin recorrer toda la colección
+memeSchema.index({ tags: 1, createdAt: -1 });
 // Para listar los memes de un perfil (los más recientes primero) sin recorrer
 // toda la colección.
 memeSchema.index({ user: 1, createdAt: -1 });

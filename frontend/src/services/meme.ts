@@ -34,11 +34,22 @@ const getPodium = () => {
     .then((response) => response.data);
 };
 
+interface CreateOptions {
+  // Etiqueta especial de carrera (opcional).
+  departments?: Department[];
+  // Hashtags libres, sin "#" (máx. 5).
+  tags?: string[];
+}
+
 // Sube un meme nuevo. Va como multipart/form-data porque lleva un archivo;
 // axios agrega solo el header Content-Type con su boundary.
-const create = (content: string, image: File) => {
+// departments y tags se repiten como campos (tags=a&tags=b), igual que en
+// requests.rest.
+const create = (content: string, image: File, { departments = [], tags = [] }: CreateOptions = {}) => {
   const formData = new FormData();
   formData.append("content", content);
+  departments.forEach((department) => formData.append("departments", department));
+  tags.forEach((tag) => formData.append("tags", tag));
   formData.append("image", image);
 
   return axios
